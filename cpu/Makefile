@@ -16,9 +16,9 @@ define override_default
   ))
 endef
 
-override CXX :=     $(call override_default,CXX,clang++-10)
-override LD :=      $(call override_default,LD,clang++-10)
-override OBJDUMP := $(call override_default,OBJDUMP,llvm-objdump-10)
+override CXX :=     $(call override_default,CXX,clang++)
+override LD :=      $(call override_default,LD,clang++)
+override OBJDUMP := $(call override_default,OBJDUMP,llvm-objdump)
 
 .PHONY: clean all release debug
 .DEFAULT_GOAL := all
