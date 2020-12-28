@@ -7,14 +7,14 @@
 void
 panic(const char *fmt, ...)
 {
-	fprintf(stderr, "\n========== PANIC ==========");
+	fprintf(stderr, "\n========== PANIC ==========\n");
 
-	va_list va;	
+	va_list va;
 	va_start(va, fmt);
 	vfprintf(stderr, fmt, va);
 	va_end(va);
 
-	fprintf(stderr, "\n===========================");
+	fprintf(stderr, "\n===========================\n");
 
 	/* Abort the process and pray for a core dump. */
 	abort();

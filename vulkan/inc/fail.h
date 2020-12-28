@@ -1,4 +1,7 @@
 /* fail.h - Panic and falible operations. */
+#ifndef __FAIL_H__
+#define __FAIL_H__
+#include <stddef.h> /* For size_t. */
 
 /* Displays a given message and aborts the program. */
 void panic(const char *fmt, ...);
@@ -13,3 +16,4 @@ void panic(const char *fmt, ...);
  * easier to isolate and debug. */
 void * allocate(size_t size);
 
+#endif

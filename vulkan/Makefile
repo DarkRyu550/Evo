@@ -46,7 +46,7 @@ shaders.h: $(SHAD) Makefile
 
 
 .SUFFIXES: .c .o .glsl .spirv
-.c.o:
+%.o: %.c shaders.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 .glsl.spirv:
 	$(SC) $(SFLAGS) -o $@ $<

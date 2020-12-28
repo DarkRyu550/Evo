@@ -2,15 +2,10 @@
 /* Maximum number of genes  */
 const uint MAX_GENES = 32;
 
+/* Buffer with the data for individuals. */
 layout(std430, set = 0, binding = 0)
 buffer Individuals
-{
-	/* Buffer index to the individual to be preserved. */
-	int Preserve;
-
-	/* Mutation factor, from zero to one. */
-	float Factor;
-
+{	
 	/* Granularity values for every gene. 
 	 * 
 	 * A gene's granularity is defined as the smallest meaningful step that can
@@ -28,9 +23,16 @@ buffer Individuals
 	float Genes[][MAX_GENES];
 };
 
+/* Parameters for the mutation stage. */
 layout(std430, set = 0, binding = 1)
-buffer EntropyBuffer
+buffer Mutation
 {
+	/* Buffer index to the individual to be preserved. */
+	int Preserve;
+
+	/* Mutation factor, from zero to one. */
+	float Factor;
+
 	/* The entropy buffer for every individual, in a range from minus one to 
 	 * one, inclusive. Each gene gets its own entropy value. */
 	float Entropy[][MAX_GENES];

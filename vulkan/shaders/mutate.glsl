@@ -1,7 +1,7 @@
 #version 450
 #pragma shader_stage(compute)
 
-/* Include common structures. */
+/* For common data structures. */
 #include "common.glsl"
 
 void main()
