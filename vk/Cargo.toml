@@ -1,0 +1,16 @@
+[package]
+name = "vk"
+version = "0.1.0"
+authors = [
+    "Matheus Branco Borella <dark.ryu.550@gmail.com>",
+    "Natan Bernardi Cerdeira <natanbc@gmail.com>"
+]
+edition = "2018"
+
+[dependencies]
+vulkano         = "0.20"
+vulkano-win     = "0.20"
+vulkano-shaders = "0.20"
+winit           = "0.24"
+log             = "0.4"
+env_logger      = "0.8"
