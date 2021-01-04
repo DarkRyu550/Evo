@@ -1,0 +1,21 @@
+[Window]
+Width  = 800
+Height = 600
+SwapchainModes = [ "Mailbox", "Fifo" ]
+
+[Simulation]
+PlaneWidth  = 200.0
+PlaneHeight = 200.0
+
+HorizontalGranularity = 200
+VerticalGranularity   = 200
+
+[Simulation.Herbivores]
+Individuals = 1000
+ViewRadius  = 1.0
+Signature   = { Red = 0.0, Green = 0.5, Blue = 1.0 }
+
+[Simulation.Predators]
+Individuals = 100
+ViewRadius  = 1.0
+Signature   = { Red = 0.0, Green = 0.5, Blue = 1.0 }
