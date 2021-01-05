@@ -3,69 +3,50 @@ extern crate log;
 
 use winit::window::WindowBuilder;
 use winit::event_loop::{EventLoop, ControlFlow};
-use vulkano::instance::{Instance, ApplicationInfo, Version};
-use vulkano::device::{Features, DeviceExtensions};
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
 use std::time::Instant;
 use std::sync::Arc;
+use crate::settings::{Preferences, PresentationMode};
+use std::error::Error;
+use crate::state::State;
 
 mod display;
-mod instance;
-mod evolve;
-mod carriage;
-mod shaders;
+mod state;
+mod settings;
+mod dataset;
 
 fn main() {
 	env_logger::init();
+	let prefs = Preferences::try_load()
+		.or_else(|what| {
+			warn!("could not load settings file, falling back to defaults: {}", what);
+			Ok(Default::default())
+		})
+		.unwrap();
 
-	let lp = EventLoop::new();
+	let window_size = PhysicalSize {
+		width:  prefs.window.width,
+		height: prefs.window.height
+	};
+	let event_loop = EventLoop::new();
 	let window = WindowBuilder::new()
 		.with_resizable(false)
 		.with_title("Evo")
-		.with_inner_size(PhysicalSize{ width: 800, height: 600 })
-		.build(&lp)
+		.with_inner_size(window_size)
+		.build(&event_loop)
 		.expect("could not initialize window");
 
-	let app_info = ApplicationInfo {
-		application_name: Some("Evo".into()),
-		engine_name:      Some(env!("CARGO_PKG_NAME").into()),
-		engine_version:   Some(Version { major: 0, minor: 1, patch: 0 }),
-		.. Default::default()
-	};
-	let instance = Instance::new(
-		Some(&app_info),
-		&vulkano_win::required_extensions(),
-		std::iter::empty()
-	).expect("could not create vulkan instance");
-
-	let surface = vulkano_win::create_vk_surface(&window, instance.clone())
-		.expect("could not create window surface for vulkan");
-
-	let instance = Arc::new(instance::Instance::new(
-		instance,
-		|dev| {
-			let mut presentable = false;
-			for family in dev.queue_families() {
-				if surface.is_supported(family).unwrap() {
-					presentable = true;
-				}
-			}
-
-			presentable
-		},
-		&Features {
-			shader_buffer_int64_atomics: true,
-			.. Features::none()
-		},
-		&DeviceExtensions {
-			khr_swapchain: true,
-			.. DeviceExtensions::none()
-		}).expect("could not create program instance"));
-	let mut display = display::Display::new(instance);
+	let mut surface = None;
+	let state = futures::executor
+		::block_on(State::new(|instance| {
+			*surface = Some(unsafe { instance.create_surface(&window) });
+			surface.as_ref().unwrap()
+		})).expect("could not initialize state");
+	let surface = surface.unwrap();
 
 	let mut time = Instant::now();
-	lp.run(move |event, target, flow| {
+	event_loop.run(move |event, target, flow| {
 		*flow = ControlFlow::Poll;
 		if let Event::WindowEvent { event, .. } = event {
 			match event {

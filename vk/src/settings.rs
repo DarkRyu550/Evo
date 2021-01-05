@@ -79,7 +79,7 @@ pub struct Window {
 	/** Height of the display window. */
 	pub height: u32,
 	/** Allowed presentation modes in order of priority. */
-	pub swapchain_modes: Vec<PresentationMode>,
+	pub swapchain_mode: PresentationMode,
 }
 
 /** Application settings. */
@@ -100,5 +100,40 @@ impl Preferences {
 
 		toml::from_slice(&data[..])
 			.map_err(Into::into)
+	}
+}
+impl Default for Preferences {
+	fn default() -> Self {
+		Self {
+			window: Window {
+				width: 800,
+				height: 600,
+				swapchain_mode: PresentationMode::Mailbox
+			},
+			simulation: Simulation {
+				plane_width: 100.0,
+				plane_height: 100.0,
+				horizontal_granularity: 100,
+				vertical_granularity: 100,
+				herbivores: Group {
+					individuals: 100,
+					view_radius: 1.0,
+					signature: Pheromone {
+						red:   0.0,
+						green: 1.0,
+						blue:  1.0
+					}
+				},
+				predators: Group {
+					individuals: 10,
+					view_radius: 1.0,
+					signature: Pheromone {
+						red:   1.0,
+						green: 0.0,
+						blue:  0.0
+					}
+				}
+			}
+		}
 	}
 }

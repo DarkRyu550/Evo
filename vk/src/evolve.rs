@@ -1,4 +1,4 @@
-use crate::instance::Instance;
+use crate::state::State;
 use std::borrow::Borrow;
 
 pub struct Evolve<A> {
@@ -6,7 +6,7 @@ pub struct Evolve<A> {
 	carriage:
 }
 impl<A> Evolve<A>
-	where A: Borrow<Instance> {
+	where A: Borrow<State> {
 
 
 }
