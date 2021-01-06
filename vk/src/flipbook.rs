@@ -1,10 +1,12 @@
-use wgpu::{BindGroupLayout, Buffer, Texture, BufferUsage, BindGroup, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ShaderStage, BindingType, TextureViewDimension, TextureFormat, Device, TextureDescriptor, Extent3d, TextureDimension, TextureUsage, BindGroupDescriptor, BindGroupEntry, BindingResource, TextureViewDescriptor, TextureAspect};
+use wgpu::{BindGroupLayout, Buffer, Texture, BufferUsage, BindGroup, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ShaderStage, BindingType, TextureViewDimension, TextureFormat, Device, TextureDescriptor, Extent3d, TextureDimension, TextureUsage, BindGroupDescriptor, BindGroupEntry, BindingResource, TextureViewDescriptor, TextureAspect, MapMode};
 use crate::state::State;
 use std::borrow::Borrow;
 use crate::settings::Preferences;
 use std::sync::{Mutex, Arc};
 use std::time::Instant;
 use wgpu::util::{DeviceExt, BufferInitDescriptor};
+use crate::dataset::BackChannel;
+use std::ops::{Range, RangeBounds, Bound};
 
 /** Creates a new flipbook dataset channel, creating all the required backing
  * storage and binding descriptors, modeled and initialized after the parameters
@@ -113,9 +115,11 @@ struct Index {
 #[derive(Debug)]
 struct Bundle {
 	/** Handle to the underlying herbivore storage buffer. Along with a count. */
-	herbivores: (Buffer, u64),
+	herbivores: (Buffer, u32),
 	/** Handle to the underlying predator storage buffer. Along with a count. */
-	predators:  (Buffer, u64),
+	predators: (Buffer, u32),
+	/** Handle to the host back-channeling buffer. */
+	back_channel: Buffer,
 	/** Handle to the simulation plane storage. */
 	plane: (Texture, u32, u32),
 	/** Bind group for the resources in this bundle. */
@@ -146,6 +150,20 @@ impl Bundle {
 				label: Some("Flipbook/Dataset/PredatorBuffer"),
 				contents: &predators.as_ref()[..],
 				usage: BufferUsage::STORAGE
+			});
+
+		let mut back_channel_buf = Vec::with_capacity(16);
+		let back_channel = BackChannel {
+			herbivores: 0..prefs.simulation.herbivores.individuals,
+			predators: 0..prefs.simulation.predators.individuals
+		};
+		back_channel.bytes(&mut back_channel_buf);
+
+		let back_channel = device.create_buffer_init(
+			&BufferInitDescriptor {
+				label: Some("Flipbook/Dataset/BackChannelBuffer"),
+				contents: &back_channel_buf[..],
+				usage: BufferUsage::STORAGE | BufferUsage::MAP_READ | BufferUsage::MAP_WRITE
 			});
 
 		let plane = device.create_texture(
@@ -196,8 +214,9 @@ impl Bundle {
 			});
 
 		Self {
-			herbivores: (herbivores, u64::from(prefs.simulation.herbivores.individuals)),
-			predators:  (predators,  u64::from(prefs.simulation.predators.individuals)),
+			herbivores: (herbivores, prefs.simulation.herbivores.budget),
+			predators:  (predators,  prefs.simulation.predators.budget),
+			back_channel,
 			plane: (
 				plane,
 				prefs.simulation.horizontal_granularity,
@@ -205,6 +224,34 @@ impl Bundle {
 			),
 			bind
 		}
+	}
+
+	/** Read from the back channel buffer and copies the results. */
+	pub async fn read_back_channel(&self) -> BackChannel {
+		let slice = self.back_channel.slice(..);
+
+		slice.map_async(MapMode::Read)
+			.await
+			.expect("could not map back channel for reading");
+		let mapped = slice.get_mapped_range();
+
+		BackChannel::from_bytes(&*mapped)
+	}
+
+	/** Write to the given data to the back channel buffer. */
+	pub async fn write_back_channel(&self, data: BackChannel) {
+		let slice = self.back_channel.slice(..);
+
+		slice.map_async(MapMode::Write)
+			.await
+			.expect("could not map back channel for writing");
+		let mut mapped = slice.get_mapped_range_mut();
+
+		let mut buf = Vec::with_capacity(16);
+		data.bytes(&mut buf);
+
+		let target = &mut *mapped;
+		target.copy_from_slice(&buf[..]);
 	}
 }
 
@@ -303,6 +350,18 @@ impl Consumer {
 	pub fn layout(&self) -> &BindGroupLayout {
 		&self.book.layout
 	}
+
+	/** The budget for individuals in the herbivore group in each of the
+	 * snapshots obtained from this consumer. */
+	pub fn herbivore_budget(&self) -> u32 {
+		self.book.bundles[0].herbivores.1
+	}
+
+	/** The budget for individuals in the predator group in each of the
+	 * snapshots obtained from this consumer. */
+	pub fn predator_budget(&self) -> u32 {
+		self.book.bundles[0].predators.1
+	}
 }
 
 #[derive(Debug)]
@@ -336,14 +395,20 @@ impl<'a> Snapshot<'a> {
 		self.data().plane.2
 	}
 
-	/** Number of individuals currently alive in the herbivore group. */
-	pub fn herbivores(&self) -> u64 {
-		self.data().herbivores.1
+	/** Range of individuals currently alive in the herbivore group. */
+	pub async fn herbivores(&self) -> Range<u32> {
+		self.data()
+			.read_back_channel()
+			.await
+			.herbivores
 	}
 
-	/** Number of individuals currently alive in the predator group. */
-	pub fn predators(&self) -> u64 {
-		self.data().predators.1
+	/** Range of individuals currently alive in the predator group. */
+	pub async fn predators(&self) -> Range<u32> {
+		self.data()
+			.read_back_channel()
+			.await
+			.predators
 	}
 }
 
@@ -383,6 +448,18 @@ impl Producer {
 	pub fn layout(&self) -> &BindGroupLayout {
 		&self.book.layout
 	}
+
+	/** The budget for individuals in the herbivore group in each of the frames
+	 * obtained from this producer. */
+	pub fn herbivore_budget(&self) -> u32 {
+		self.book.bundles[0].herbivores.1
+	}
+
+	/** The budget for individuals in the predator group in each of the frames
+	 * obtained from this producer. */
+	pub fn predator_budget(&self) -> u32 {
+		self.book.bundles[0].predators.1
+	}
 }
 
 pub struct Frame<'a> {
@@ -414,14 +491,103 @@ impl<'a> Frame<'a> {
 		self.data().plane.2
 	}
 
-	/** Number of individuals currently alive in the herbivore group. */
-	pub fn herbivores(&self) -> u64 {
-		self.data().herbivores.1
+	/** Read the back current back channel. */
+	async fn back_channel(&self) -> BackChannel {
+		self.data()
+			.read_back_channel()
+			.await
 	}
 
-	/** Number of individuals currently alive in the predator group. */
-	pub fn predators(&self) -> u64 {
-		self.data().predators.1
+	/** Range of individuals currently alive in the herbivore group. */
+	pub async fn herbivores(&self) -> Range<u32> {
+		self.back_channel()
+			.await
+			.herbivores
+	}
+
+	/** Range of individuals currently alive in the predator group. */
+	pub async fn predators(&self) -> Range<u32> {
+		self.back_channel()
+			.await
+			.predators
+	}
+
+	/** Set the range of individuals currently alive in the herbivore group.
+	 *
+	 * # Panics
+	 * This function will panic if the given bounds fall outside the budget
+	 * range of the herbivores or if the lower bound is greater than the upper
+	 * bound. */
+	pub async fn set_herbivores<R>(&mut self, range: R)
+		where R: RangeBounds<u32> {
+
+		let budget = self.data().herbivores.1;
+		let lower = match range.start_bound() {
+			Bound::Unbounded => 0,
+			Bound::Excluded(val) => val.saturating_add(1),
+			Bound::Included(val) => *val
+		};
+		let upper = match range.end_bound() {
+			Bound::Unbounded => budget,
+			Bound::Excluded(val) => *val,
+			Bound::Included(val) => val.saturating_add(1)
+		};
+
+		if lower > upper {
+			panic!("lower bound > upper bound: {} > {}", lower, upper);
+		}
+		if upper > budget {
+			panic!("upper bound > budget: {} > {}", upper, budget);
+		}
+		if lower > budget {
+			panic!("lower bound > budget: {} > {}", lower, budget);
+		}
+
+		let mut back_channel = self.back_channel().await;
+		back_channel.herbivores = lower..upper;
+
+		self.data()
+			.write_back_channel(back_channel)
+			.await
+	}
+
+	/** Set the range of individuals currently alive in the predator group.
+	 *
+	 * # Panics
+	 * This function will panic if the given bounds fall outside the budget
+	 * range of the predators or if the lower bound is greater than the upper
+	 * bound. */
+	pub async fn set_predators<R>(&mut self, range: R)
+		where R: RangeBounds<u32> {
+
+		let budget = self.data().predators.1;
+		let lower = match range.start_bound() {
+			Bound::Unbounded => 0,
+			Bound::Excluded(val) => val.saturating_add(1),
+			Bound::Included(val) => *val
+		};
+		let upper = match range.end_bound() {
+			Bound::Unbounded => budget,
+			Bound::Excluded(val) => *val,
+			Bound::Included(val) => val.saturating_add(1)
+		};
+
+		if lower > upper {
+			panic!("lower bound > upper bound: {} > {}", lower, upper);
+		}
+		if upper > budget {
+			panic!("upper bound > budget: {} > {}", upper, budget);
+		}
+		if lower > budget {
+			panic!("lower bound > budget: {} > {}", lower, budget);
+		}
+
+		let mut back_channel = self.back_channel().await;
+		back_channel.predators = lower..upper;
+
+		self.data()
+			.write_back_channel(back_channel)
+			.await
 	}
 }
 impl<'a> Drop for Frame<'a> {

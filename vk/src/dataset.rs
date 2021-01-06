@@ -1,4 +1,6 @@
 use crate::settings::Group;
+use std::ops::Range;
+use std::convert::TryInto;
 
 /** Create a new population from the given preference group. */
 pub fn population(group: &Group) -> Vec<Individual> {
@@ -61,6 +63,54 @@ pub fn population_bytes_with_buffer(group: &Group, mut buf: Vec<u8>) -> Vec<u8> 
  * `std430`, storing it in a newly allocated buffer. */
 pub fn population_bytes(group: &Group) -> Vec<u8> {
 	population_bytes_with_buffer(group, Vec::new())
+}
+
+/** Back-channel the shader pipelines uses to communicate information back to
+ * the host device. */
+#[derive(Debug, Clone, PartialEq)]
+pub struct BackChannel {
+	/** Herbivore dispatch range for the next iteration. */
+	pub herbivores: Range<u32>,
+	/** Predator dispatch range for the next iteration. */
+	pub predators: Range<u32>
+}
+impl BackChannel {
+	/** Create this structure with arbitrary bytes from a buffer. */
+	pub fn from_bytes<A: AsRef<[u8]>>(bytes: A) -> Self {
+		let data = bytes.as_ref();
+
+		let a = u32::from_ne_bytes((&data[ 0..4 ]).try_into().unwrap());
+		let b = u32::from_ne_bytes((&data[ 4..8 ]).try_into().unwrap());
+		let c = u32::from_ne_bytes((&data[ 8..12]).try_into().unwrap());
+		let d = u32::from_ne_bytes((&data[12..16]).try_into().unwrap());
+
+		if a > b { panic!("lower herbivore bound > upper herbivore bound"); }
+		if c > d { panic!("lower predator bound > upper predator bound"); }
+
+		Self {
+			herbivores: a..b,
+			predators: c..d
+		}
+	}
+
+	/** Write out the bytes of this structure into a vector.
+	 *
+	 * # Layout
+	 * The bytes written are guaranteed to be laid out in `std430`, as specified
+	 * in the OpenGL 4.5 Specification that can be found at
+	 * https://www.khronos.org/registry/OpenGL/specs/gl/glspec45.core.pdf, under
+	 * Section 7.6.2.2 (Standard Uniform Block Layout).
+	 */
+	pub fn bytes(&self, buf: &mut Vec<u8>) -> usize {
+		let mut written = 0;
+		written += write_u32(buf, self.herbivores.start);
+		written += write_u32(buf, self.herbivores.end);
+
+		written += write_u32(buf, self.predators.start);
+		written += write_u32(buf, self.predators.end);
+
+		written
+	}
 }
 
 /** The data for an individual. */
@@ -166,11 +216,19 @@ fn write_pad(buf: &mut Vec<u8>, size: usize) -> usize {
 	size
 }
 
+/** Writes the given number into the buffer. */
+fn write_u32(buf: &mut Vec<u8>, val: u32) -> usize {
+	let data = val.to_ne_bytes();
+	buf.extend_from_slice(&data[..]);
+
+	data.len()
+}
+
 /** Writes the given float vector into the buffer. */
 fn write_vec<const N: usize>(buf: &mut Vec<u8>, data: [f32; N]) -> usize {
 	(0..data.len()).into_iter()
 		.map(|i| data[i])
-		.map(|p| f32::to_le_bytes(p))
+		.map(|p| f32::to_ne_bytes(p))
 		.map(|bytes| {
 			buf.extend_from_slice(&bytes[..]);
 			bytes.len()
