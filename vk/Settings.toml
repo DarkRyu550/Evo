@@ -11,11 +11,15 @@ HorizontalGranularity = 200
 VerticalGranularity   = 200
 
 [Simulation.Herbivores]
-Individuals = 1000
-ViewRadius  = 1.0
-Signature   = { Red = 0.0, Green = 0.5, Blue = 1.0 }
+Budget       = 268435456
+Individuals  = 1000
+ViewRadius   = 1.0
+Signature    = { Red = 0.0, Green = 0.5, Blue = 1.0 }
+InitToRandom = true
 
 [Simulation.Predators]
+Budget      = 268435456
 Individuals = 100
 ViewRadius  = 1.0
 Signature   = { Red = 0.0, Green = 0.5, Blue = 1.0 }
+InitToRandom = true

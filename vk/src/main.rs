@@ -1,3 +1,4 @@
+#![feature(min_const_generics)]
 #[macro_use]
 extern crate log;
 
@@ -6,24 +7,22 @@ use winit::event_loop::{EventLoop, ControlFlow};
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
 use std::time::Instant;
-use std::sync::Arc;
-use crate::settings::{Preferences, PresentationMode};
-use std::error::Error;
+use crate::settings::Preferences;
 use crate::state::State;
 
-mod display;
+/*mod display;*/
 mod state;
 mod settings;
+mod flipbook;
 mod dataset;
 
 fn main() {
 	env_logger::init();
 	let prefs = Preferences::try_load()
-		.or_else(|what| {
+		.unwrap_or_else(|what| {
 			warn!("could not load settings file, falling back to defaults: {}", what);
-			Ok(Default::default())
-		})
-		.unwrap();
+			Default::default()
+		});
 
 	let window_size = PhysicalSize {
 		width:  prefs.window.width,
@@ -37,13 +36,10 @@ fn main() {
 		.build(&event_loop)
 		.expect("could not initialize window");
 
-	let mut surface = None;
-	let state = futures::executor
-		::block_on(State::new(|instance| {
-			*surface = Some(unsafe { instance.create_surface(&window) });
-			surface.as_ref().unwrap()
+	let (state, surface) = futures::executor
+		::block_on(State::new(move |instance| {
+			unsafe { instance.create_surface(&window) }
 		})).expect("could not initialize state");
-	let surface = surface.unwrap();
 
 	let mut time = Instant::now();
 	event_loop.run(move |event, target, flow| {
@@ -61,6 +57,6 @@ fn main() {
 		let delta = now.duration_since(time);
 		time = now;
 
-		display.iterate(delta);
+		/*display.iterate(delta);*/
 	});
 }

@@ -1,9 +1,10 @@
 use std::error::Error;
 use std::fs::File;
 use std::io::Read;
+use serde::{Serialize, Deserialize};
 
 /** Description of a pheromone. */
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Pheromone {
 	/** Amount of the red chemical. Clamped between 0.0 and 1.0. */
@@ -15,20 +16,25 @@ pub struct Pheromone {
 }
 
 /** Settings controlling specific groups of individuals in the simulation. */
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct Group {
 	/** Number of individuals this group will start off with. */
 	pub individuals: u32,
+	/** Maximum number of individuals this groups will allow. */
+	pub budget: u32,
 	/** Radius of vision in simulation board units. */
 	pub view_radius: f64,
 	/** The signature pheromone composition for this group. This will be used as
 	 * the initial value for the chemical composition in the genes of all
 	 * individuals of the group. */
-	pub signature: Pheromone
+	pub signature: Pheromone,
+	/** Whether to initialize the other parameters to random values. */
+	pub init_to_random: bool,
 }
 
 /** Settings controlling all the parameters for the simulation. */
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Simulation {
 	/** Width of the simulation plane. */
@@ -83,7 +89,7 @@ pub struct Window {
 }
 
 /** Application settings. */
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Preferences {
 	/** Section for the window and display settings. */
@@ -117,21 +123,25 @@ impl Default for Preferences {
 				vertical_granularity: 100,
 				herbivores: Group {
 					individuals: 100,
+					budget: 1024,
 					view_radius: 1.0,
 					signature: Pheromone {
 						red:   0.0,
 						green: 1.0,
 						blue:  1.0
-					}
+					},
+					init_to_random: true
 				},
 				predators: Group {
 					individuals: 10,
+					budget: 1024,
 					view_radius: 1.0,
 					signature: Pheromone {
 						red:   1.0,
 						green: 0.0,
 						blue:  0.0
-					}
+					},
+					init_to_random: true
 				}
 			}
 		}

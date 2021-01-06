@@ -1,7 +1,5 @@
-use std::sync::Arc;
 use std::error::Error;
 use wgpu::{Instance, Adapter, Device, Queue, Surface, BackendBit, RequestAdapterOptions, PowerPreference, DeviceDescriptor, Features};
-use crate::settings::Preferences;
 
 /** This structure contains the group of Wgpu primitives and devices being
  * used throughout the program, as well as facilities for caching common
@@ -21,15 +19,18 @@ impl State {
 	 * is not the best practice. But here it shouldn't matter as this is a very
 	 * top level error to start with. */
 	pub async fn new(
-		mut surface: impl FnMut(&Instance) -> &Surface) -> Result<Self, Box<dyn Error>> {
-
+		mut surface: impl FnMut(&Instance) -> Surface) -> Result<(Self, Surface), Box<dyn Error>> {
 
 		let instance = Instance::new(BackendBit::PRIMARY);
+		let surface = surface(&instance);
+
 		let adapter = instance.request_adapter(
 			&RequestAdapterOptions {
 				power_preference: PowerPreference::HighPerformance,
-				compatible_surface: Some(surface(&instance))
-			}).await?;
+				compatible_surface: Some(&surface)
+			})
+			.await
+			.ok_or("could not find a suitable adapter")?;
 
 		let (device, queue) = adapter.request_device(
 			&DeviceDescriptor {
@@ -38,6 +39,13 @@ impl State {
 				..Default::default()
 			},
 			None).await?;
+
+		Ok((Self {
+			instance,
+			physical: adapter,
+			device,
+			queue
+		}, surface))
 	}
 
 	/** Handle to the WebGpu instance being used. */
