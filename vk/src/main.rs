@@ -16,13 +16,13 @@ use log::LevelFilter;
 use std::time::Duration;
 
 mod display;
-/*mod evolve;*/
 mod shaders;
 mod state;
 mod settings;
 mod flipbook;
 mod dataset;
 mod models;
+mod evolve;
 
 fn main() {
 	env_logger::builder()
