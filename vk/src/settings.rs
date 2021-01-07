@@ -76,6 +76,17 @@ pub enum PresentationMode {
 	Fifo,
 }
 
+/** Backend to use for wgpu. */
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+pub enum Backend {
+	Vulkan,
+	GL,
+	Metal,
+	DX12,
+	DX11,
+	BrowserWebGpu
+}
+
 /** Settings for the window and display of the simulation. */
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -86,6 +97,8 @@ pub struct Window {
 	pub height: u32,
 	/** Allowed presentation modes in order of priority. */
 	pub swapchain_mode: PresentationMode,
+	/** Backends to use */
+	pub backends: Vec<Backend>
 }
 
 /** Application settings. */
@@ -114,7 +127,9 @@ impl Default for Preferences {
 			window: Window {
 				width: 800,
 				height: 600,
-				swapchain_mode: PresentationMode::Mailbox
+				swapchain_mode: PresentationMode::Mailbox,
+				backends: vec![Backend::Vulkan, Backend::Metal,
+							   Backend::DX12, Backend::BrowserWebGpu]
 			},
 			simulation: Simulation {
 				plane_width: 100.0,

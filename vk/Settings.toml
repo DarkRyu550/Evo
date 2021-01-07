@@ -1,7 +1,7 @@
 [Window]
 Width  = 800
 Height = 600
-SwapchainMode = "Mailbox"
+SwapchainModes = "Mailbox"
 
 [Simulation]
 PlaneWidth  = 200.0
@@ -11,14 +11,14 @@ HorizontalGranularity = 200
 VerticalGranularity   = 200
 
 [Simulation.Herbivores]
-Budget       = 4096
+Budget       = 268435456
 Individuals  = 1000
 ViewRadius   = 1.0
 Signature    = { Red = 0.0, Green = 0.5, Blue = 1.0 }
 InitToRandom = true
 
 [Simulation.Predators]
-Budget      = 4096
+Budget      = 268435456
 Individuals = 100
 ViewRadius  = 1.0
 Signature   = { Red = 0.0, Green = 0.5, Blue = 1.0 }
