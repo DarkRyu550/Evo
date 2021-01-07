@@ -21,7 +21,7 @@ impl State {
 	pub async fn new(
 		mut surface: impl FnMut(&Instance) -> Surface) -> Result<(Self, Surface), Box<dyn Error>> {
 
-		let instance = Instance::new(BackendBit::DX12);
+		let instance = Instance::new(BackendBit::PRIMARY);
 		let surface = surface(&instance);
 
 		let adapter = instance.request_adapter(
