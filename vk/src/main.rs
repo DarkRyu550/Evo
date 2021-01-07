@@ -25,10 +25,7 @@ mod dataset;
 mod models;
 
 fn main() {
-	env_logger::builder()
-		/* Disgusting. */
-		.filter(Some("gfx_backend_vulkan"), LevelFilter::Off)
-		.init();
+	env_logger::builder().init();
 
 	let prefs = Preferences::try_load()
 		.unwrap_or_else(|what| {
@@ -51,7 +48,7 @@ fn main() {
 	let (state, surface) = futures::executor
 		::block_on(State::new(|instance| {
 			unsafe { instance.create_surface(&window) }
-		})).expect("could not initialize state");
+		}, &prefs)).expect("could not initialize state");
 	let state = Arc::new(state);
 
 	let (producer, consumer) = flipbook::channel(state.clone(), &prefs);

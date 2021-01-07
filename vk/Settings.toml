@@ -2,6 +2,7 @@
 Width  = 800
 Height = 600
 SwapchainMode = "Mailbox"
+Backends = ["Vulkan", "Metal", "DX12", "BrowserWebGpu"]
 
 [Simulation]
 PlaneWidth  = 10.0
