@@ -3,13 +3,15 @@ use std::time::Duration;
 use std::borrow::Borrow;
 use winit::window::Window;
 use std::sync::Arc;
-use wgpu::{Surface, SwapChain, SwapChainDescriptor, TextureUsage, TextureFormat, PresentMode, SwapChainError, CommandEncoder, CommandEncoderDescriptor, RenderPassDescriptor, RenderPassColorAttachmentDescriptor, RenderPipeline, RenderPipelineDescriptor, PipelineLayout, PipelineLayoutDescriptor, BindGroupLayoutDescriptor, BindGroupEntry};
+use wgpu::{Surface, SwapChain, SwapChainDescriptor, TextureUsage, TextureFormat, PresentMode, SwapChainError, CommandEncoder, CommandEncoderDescriptor, RenderPassDescriptor, RenderPassColorAttachmentDescriptor, RenderPipeline, RenderPipelineDescriptor, PipelineLayout, PipelineLayoutDescriptor, BindGroupLayoutDescriptor, BindGroupEntry, ProgrammableStageDescriptor};
 use crate::settings::{Preferences, PresentationMode};
+use crate::flipbook::Consumer;
 
 pub struct Display<A> {
 	state:     A,
 	surface:   Surface,
 	swapchain: SwapChain,
+	flipbook:  Consumer,
 
 	individual_render_layout: PipelineLayout,
 	individual_render_pipeline: RenderPipeline
@@ -17,8 +19,13 @@ pub struct Display<A> {
 impl<A> Display<A>
 	where A: Borrow<State> {
 
-	/** Creates a new display with the given instance. */
-	pub fn new(state: A, surface: Surface, prefs: &Preferences) -> Self {
+	/** Creates a new display with the given state, surface, flipbook consumer
+	 * and preferences. */
+	pub fn new(
+		state: A,
+		surface: Surface,
+		flipbook: Consumer,
+		prefs: &Preferences) -> Self {
 		let device = state.borrow().device();
 
 		let swapchain = device.create_swap_chain(
@@ -38,25 +45,20 @@ impl<A> Display<A>
 			&PipelineLayoutDescriptor {
 				label: Some("DrawIndividuals/PipelineLayout"),
 				bind_group_layouts: &[
-					&device.create_bind_group_layout(
-						&BindGroupLayoutDescriptor {
-							label: None,
-							entries: &[
-								BindGroupEntry {
-									binding: 0,
-									resource: ()
-								}
-							]
-						})
+					flipbook.layout()
 				],
+				/* We don't use push constants. */
 				push_constant_ranges: &[]
 			});
 
 		let individual_render_pipeline = device.create_render_pipeline(
 			&RenderPipelineDescriptor {
 				label: Some("DrawIndividuals/Pipeline"),
-				layout: &,
-				vertex_stage: ProgrammableStageDescriptor {},
+				layout: Some(&individual_render_layout),
+				vertex_stage: ProgrammableStageDescriptor {
+					module: &(),
+					entry_point: ""
+				},
 				fragment_stage: None,
 				rasterization_state: None,
 				primitive_topology: PrimitiveTopology::PointList,

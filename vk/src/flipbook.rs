@@ -39,7 +39,7 @@ pub fn channel<A>(state: A, prefs: &Preferences) -> (Producer, Consumer)
 				/* Simulation plane. */
 				BindGroupLayoutEntry {
 					binding: 0,
-					visibility: ShaderStage::COMPUTE,
+					visibility: ShaderStage::COMPUTE | ShaderStage::VERTEX,
 					ty: BindingType::StorageTexture {
 						dimension: TextureViewDimension::D2,
 						format: TextureFormat::Rgba32Float,
@@ -50,7 +50,7 @@ pub fn channel<A>(state: A, prefs: &Preferences) -> (Producer, Consumer)
 				/* Herbivore group. */
 				BindGroupLayoutEntry {
 					binding: 1,
-					visibility: ShaderStage::COMPUTE,
+					visibility: ShaderStage::COMPUTE | ShaderStage::VERTEX,
 					ty: BindingType::StorageBuffer {
 						dynamic: false,
 						min_binding_size: None,
@@ -61,6 +61,17 @@ pub fn channel<A>(state: A, prefs: &Preferences) -> (Producer, Consumer)
 				/* Predator group. */
 				BindGroupLayoutEntry {
 					binding: 2,
+					visibility: ShaderStage::COMPUTE | ShaderStage::VERTEX,
+					ty: BindingType::StorageBuffer {
+						dynamic: false,
+						min_binding_size: None,
+						readonly: false
+					},
+					count: None
+				},
+				/* Back channel. */
+				BindGroupLayoutEntry {
+					binding: 3,
 					visibility: ShaderStage::COMPUTE,
 					ty: BindingType::StorageBuffer {
 						dynamic: false,
@@ -210,6 +221,10 @@ impl Bundle {
 						binding: 2,
 						resource: BindingResource::Buffer(predators.slice(..))
 					},
+					BindGroupEntry {
+						binding: 3,
+						resource: BindingResource::Buffer(back_channel.slice(..))
+					}
 				]
 			});
 

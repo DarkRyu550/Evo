@@ -9,7 +9,9 @@ use std::time::Instant;
 use crate::settings::Preferences;
 use crate::state::State;
 
-/*mod display;*/
+/*mod display;
+mod evolve;
+mod shaders;*/
 mod state;
 mod settings;
 mod flipbook;
@@ -39,6 +41,8 @@ fn main() {
 		::block_on(State::new(move |instance| {
 			unsafe { instance.create_surface(&window) }
 		})).expect("could not initialize state");
+
+	let (producer, consumer) = flipbook::channel(&state, &prefs);
 
 	let mut time = Instant::now();
 	event_loop.run(move |event, target, flow| {
