@@ -1,0 +1,60 @@
+/* dataset.glslh - GLSL header containing definitions and bindings for the
+ * simulation dataset. Including this file will give you access to the following
+ * global values, assuming the dataset binding group is bound to set zero:
+ *
+ * |--------------------|-------------------------------------------------------|
+ * | Evo_Field          | Image buffer containing simulation environment data.  |
+ * |--------------------|-------------------------------------------------------|
+ * | Evo_Herbivores     | An array containing all of the individuals in the     |
+ * |                    | herbivore group, including the ones currently dead,   |
+ * |                    | meaning this array is as big as the group budget.     |
+ * |--------------------|-------------------------------------------------------|
+ * | Evo_Predators      | An array containing all of the individuals in the     |
+ * |                    | predator group, including the ones currently dead,    |
+ * |                    | meaning this array is as big as the group budget.     |
+ * |--------------------|-------------------------------------------------------|
+ * | Evo_LowerHerbivore | The array index of the first herbivore alive.         |
+ * |--------------------|-------------------------------------------------------|
+ * | Evo_UpperHerbivore | The array index of the last herbivore alive.          |
+ * |--------------------|-------------------------------------------------------|
+ * | Evo_LowerPredator  | The array index of the first predator alive.          |
+ * |--------------------|-------------------------------------------------------|
+ * | Evo_UpperPredator  | The array index of the last predator alive.           |
+ * |--------------------|-------------------------------------------------------|
+ *
+ */
+
+struct Evo_Individual
+{
+    /** Position of this individual on the simulation plane. */
+    vec2 position;
+    /** Last movement vector this individual had. */
+    vec2 velocity;
+
+    vec3 red_bias;
+    vec3 green_bias;
+    vec3 blue_bias;
+
+    vec3 red_weight;
+    vec3 green_weight;
+    vec3 blue_weight;
+};
+
+/* Simulation Binding Section. */
+/*layout(set = 0, binding = 0) imageBuffer Evo_Field;*/
+layout(set = 0, binding = 1) buffer _Evo_HerbivoreGroup
+{
+    Evo_Individual[] Evo_Herbivores;
+};
+layout(set = 0, binding = 1) buffer _Evo_PredatorGroup
+{
+    Evo_Individual[] Evo_Predators;
+};
+layout(set = 0, binding = 2) buffer _Evo_BackChannel
+{
+    uint Evo_LowerHerbivore;
+    uint Evo_UpperHerbivore;
+
+    uint Evo_LowerPredator;
+    uint Evo_UpperPredator;
+};
