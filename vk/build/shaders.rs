@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::fs::File;
 use std::io::{Read, Write};
-use shaderc::{Compiler, ShaderKind, CompileOptions, OptimizationLevel, GlslProfile, TargetEnv, EnvVersion, IncludeType, ResolvedInclude};
+use shaderc::{Compiler, ShaderKind, CompileOptions, OptimizationLevel, TargetEnv, EnvVersion, IncludeType, ResolvedInclude};
 use std::ffi::OsStr;
 
 /** Directory in which all shaders will be compiled automatically. */

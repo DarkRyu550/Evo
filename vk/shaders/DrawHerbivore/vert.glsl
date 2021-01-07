@@ -2,24 +2,17 @@
 #pragma shader_stage(vertex)
 #include <dataset.glslh>
 
-/* Graphics and Input Section. */
-layout(set = 1, binding = 0) uniform Display
-{
-    /* Transformation from model space into world space. */
-    mat4 ModelTransformation;
-    /* Transformation from world space into projected view space. */
-    mat4 ViewProjection;
-};
-layout(location = 0) in vec4 VectorPosition;
+layout(location = 0) in vec3 Position;
+layout(location = 1) in vec3 Normal;
 
 void main() {
     /* Transform the model point into a world point. */
-    vec4 pos = ModelTransformation * VectorPosition;
+    vec4 pos = ModelTransformation * vec4(Position, 1.0);
 
     /* Move this individual by the position it's in. */
-    pos.x = Evo_Herbivores[gl_InstanceIndex].position.x;
-    pos.y = Evo_Herbivores[gl_InstanceIndex].position.y;
+    pos.x += Evo_Herbivores[gl_InstanceIndex].position.x;
+    pos.y += Evo_Herbivores[gl_InstanceIndex].position.y;
 
     /* Put into view, project and dispatch. */
-    gl_Position = ViewProjection * pos;
+    gl_Position = pos;
 }

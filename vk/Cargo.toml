@@ -9,15 +9,17 @@ edition = "2018"
 build = "build/main.rs"
 
 [dependencies]
-serde      = { version = "1.0", features = ["derive"] }
-toml       = "0.5"
-wgpu       = "0.6"
-futures    = "0.3"
-bytemuck   = "1"
-rand       = "0.8"
-winit      = "0.24"
-log        = "0.4"
-env_logger = "0.8"
+serde       = { version = "1.0", features = ["derive"] }
+tokio       = { version = "1",   features = ["rt", "rt-multi-thread"] }
+toml        = "0.5"
+wgpu        = "0.6"
+futures     = "0.3"
+bytemuck    = "1"
+rand        = "0.8"
+winit       = "0.24"
+log         = "0.4"
+env_logger  = "0.8"
 
 [build-dependencies]
 shaderc = "0.7"
+obj-rs  = "0.6"

@@ -243,30 +243,41 @@ impl Bundle {
 
 	/** Read from the back channel buffer and copies the results. */
 	pub async fn read_back_channel(&self) -> BackChannel {
-		let slice = self.back_channel.slice(..);
+		let channel = {
+			let slice = self.back_channel.slice(..);
+			slice.map_async(MapMode::Read)
+				.await
+				.expect("could not map back channel for reading");
+			let mapped = slice.get_mapped_range();
 
-		slice.map_async(MapMode::Read)
-			.await
-			.expect("could not map back channel for reading");
-		let mapped = slice.get_mapped_range();
+			BackChannel::from_bytes(&*mapped)
+		};
 
-		BackChannel::from_bytes(&*mapped)
+		self.back_channel.unmap();
+		channel
 	}
 
 	/** Write to the given data to the back channel buffer. */
-	pub async fn write_back_channel(&self, data: BackChannel) {
-		let slice = self.back_channel.slice(..);
+	pub async fn write_back_channel(&self, data: BackChannel) -> usize {
+		let written = {
+			let slice = self.back_channel.slice(..);
 
-		slice.map_async(MapMode::Write)
-			.await
-			.expect("could not map back channel for writing");
-		let mut mapped = slice.get_mapped_range_mut();
+			slice.map_async(MapMode::Write)
+				.await
+				.expect("could not map back channel for writing");
+			let mut mapped = slice.get_mapped_range_mut();
 
-		let mut buf = Vec::with_capacity(16);
-		data.bytes(&mut buf);
+			let mut buf = Vec::with_capacity(16);
+			data.bytes(&mut buf);
 
-		let target = &mut *mapped;
-		target.copy_from_slice(&buf[..]);
+			let target = &mut *mapped;
+			target.copy_from_slice(&buf[..]);
+
+			buf.len()
+		};
+
+		self.back_channel.unmap();
+		written
 	}
 }
 
@@ -563,7 +574,7 @@ impl<'a> Frame<'a> {
 
 		self.data()
 			.write_back_channel(back_channel)
-			.await
+			.await;
 	}
 
 	/** Set the range of individuals currently alive in the predator group.
@@ -602,7 +613,7 @@ impl<'a> Frame<'a> {
 
 		self.data()
 			.write_back_channel(back_channel)
-			.await
+			.await;
 	}
 }
 impl<'a> Drop for Frame<'a> {
