@@ -8,11 +8,11 @@ use serde::{Serialize, Deserialize};
 #[serde(rename_all = "PascalCase")]
 pub struct Pheromone {
 	/** Amount of the red chemical. Clamped between 0.0 and 1.0. */
-	pub red: f64,
+	pub red: f32,
 	/** Amount of the green chemical. Clamped between 0.0 and 1.0. */
-	pub green: f64,
+	pub green: f32,
 	/** Amount of the blue chemical. Clamped between 0.0 and 1.0.*/
-	pub blue: f64
+	pub blue: f32
 }
 
 /** Settings controlling specific groups of individuals in the simulation. */
@@ -24,7 +24,7 @@ pub struct Group {
 	/** Maximum number of individuals this groups will allow. */
 	pub budget: u32,
 	/** Radius of vision in simulation board units. */
-	pub view_radius: f64,
+	pub view_radius: f32,
 	/** The signature pheromone composition for this group. This will be used as
 	 * the initial value for the chemical composition in the genes of all
 	 * individuals of the group. */
@@ -38,9 +38,9 @@ pub struct Group {
 #[serde(rename_all = "PascalCase")]
 pub struct Simulation {
 	/** Width of the simulation plane. */
-	pub plane_width: f64,
+	pub plane_width: f32,
 	/** Height of the simulation plane. */
-	pub plane_height: f64,
+	pub plane_height: f32,
 
 	/** Granularity of the pheromone cells on the horizontal axis of the plane.
 	 *

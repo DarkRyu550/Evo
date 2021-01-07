@@ -1,6 +1,9 @@
 use wgpu::ShaderModuleSource;
 
 /** The shader performing one step of the simulation. */
-const SIMULATE: ShaderModuleSource = wgpu::include_spirv!("");
+pub fn simulate() -> ShaderModuleSource<'static> {
+	wgpu::include_spirv!(concat!(env!("OUT_DIR"), "/shaders/simulate.spv"))
+}
+
 
 

@@ -68,8 +68,15 @@ pub fn population_bytes(group: &Group) -> Vec<u8> {
 /** Matrix type. */
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct Matrix4([f32; 16]);
+pub struct Matrix4([f32; 16]);
 impl Matrix4 {
+	pub fn identity() -> Self { Self([
+		1.0, 0.0, 0.0, 0.0,
+		0.0, 1.0, 0.0, 0.0,
+		0.0, 0.0, 1.0, 0.0,
+		0.0, 0.0, 0.0, 1.0,
+	])}
+
 	pub fn translate(x: f32, y: f32, z: f32) -> Self { Self([
 		1.0, 0.0, 0.0,   x,
 		0.0, 1.0, 0.0,   y,
