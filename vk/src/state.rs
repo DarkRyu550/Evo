@@ -21,7 +21,7 @@ impl State {
 	pub async fn new(
 		mut surface: impl FnMut(&Instance) -> Surface) -> Result<(Self, Surface), Box<dyn Error>> {
 
-		let instance = Instance::new(BackendBit::PRIMARY);
+		let instance = Instance::new(BackendBit::DX12);
 		let surface = surface(&instance);
 
 		let adapter = instance.request_adapter(
@@ -34,12 +34,12 @@ impl State {
 
 		let (device, queue) = adapter.request_device(
 			&DeviceDescriptor {
-				features: Features::empty(),
+				features: Features::MAPPABLE_PRIMARY_BUFFERS,
 				limits: Default::default(),
 				..Default::default()
 			},
 			None).await?;
-
+			
 		Ok((Self {
 			instance,
 			physical: adapter,

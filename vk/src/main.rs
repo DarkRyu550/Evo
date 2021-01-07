@@ -38,7 +38,7 @@ fn main() {
 		.expect("could not initialize window");
 
 	let (state, surface) = futures::executor
-		::block_on(State::new(move |instance| {
+		::block_on(State::new(|instance| {
 			unsafe { instance.create_surface(&window) }
 		})).expect("could not initialize state");
 
@@ -46,10 +46,13 @@ fn main() {
 
 	let mut time = Instant::now();
 	event_loop.run(move |event, target, flow| {
+		println!("Run: {:?}", event);
 		*flow = ControlFlow::Poll;
+		
 		if let Event::WindowEvent { event, .. } = event {
 			match event {
-				WindowEvent::Destroyed => {
+				WindowEvent::CloseRequested => {
+					println!("Goodbye world");
 					*flow = ControlFlow::Exit;
 				},
 				_ => {}
