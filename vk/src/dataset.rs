@@ -65,6 +65,137 @@ pub fn population_bytes(group: &Group) -> Vec<u8> {
 	population_bytes_with_buffer(group, Vec::new())
 }
 
+/** Matrix type. */
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Matrix4([f32; 16]);
+impl Matrix4 {
+	pub fn translate(x: f32, y: f32, z: f32) -> Self { Self([
+		1.0, 0.0, 0.0,   x,
+		0.0, 1.0, 0.0,   y,
+		0.0, 0.0, 1.0,   z,
+		0.0, 0.0, 0.0, 1.0,
+	])}
+
+	pub fn scale(x: f32, y: f32, z: f32) -> Self { Self([
+		x, 0.0, 0.0, 0.0,
+		0.0,   y, 0.0, 0.0,
+		0.0, 0.0,   z, 0.0,
+		0.0, 0.0, 0.0, 1.0,
+	])}
+
+	pub fn viewport2d(l: f32, r: f32, t: f32, b: f32) -> Self { Self([
+		(r - l) / 2.0,           0.0, 0.0, (r + l) / 2.0,
+		0.0, (b - t) / 2.0, 0.0, (t + b) / 2.0,
+		0.0,           0.0, 1.0,           0.0,
+		0.0,           0.0, 0.0,           1.0
+	])}
+
+	pub fn ortho2d(l: f32, r: f32, t: f32, b: f32) -> Self { Self([
+		2.0 / (r - l),           0.0, 0.0, - ((r + l) / (r - l)),
+		0.0, 2.0 / (b - t), 0.0, - ((b + t) / (b - t)),
+		0.0,           0.0, 1.0,                   0.0,
+		0.0,           0.0, 0.0,                   1.0
+	])}
+
+	pub fn perspective(n: f32, f: f32) -> Self {
+		Self([
+			1.0, 0.0, 0.0,           0.0,
+			0.0, 1.0, 0.0,           0.0,
+			0.0, 0.0, 1.0 / (f - n), 0.0,
+			0.0, 0.0, 1.0,           0.0
+		])
+	}
+
+	pub fn into_inner(self) -> [f32; 16] { self.0 }
+
+	pub fn transpose(mut self) -> Self {
+		let a = |i: usize, j: usize| i * 4 + j;
+
+		for i in 0..4 {
+			for j in 0..i {
+				let x = self.0[a(i, j)];
+				let y = self.0[a(j, i)];
+
+				self.0[a(i, j)] = y;
+				self.0[a(j, i)] = x;
+			}
+		}
+
+		self
+	}
+
+	/** Write out the bytes of this structure into a vector.
+	 *
+	 * # Layout
+	 * The bytes written are guaranteed to be laid out in `std430`, as specified
+	 * in the OpenGL 4.5 Specification that can be found at
+	 * https://www.khronos.org/registry/OpenGL/specs/gl/glspec45.core.pdf, under
+	 * Section 7.6.2.2 (Standard Uniform Block Layout).
+	 */
+	pub fn bytes(&self, buf: &mut Vec<u8>) -> usize {
+		let mut written = 0;
+		for val in &self.0 {
+			written += write_vec(buf, [*val]);
+		}
+
+		written
+	}
+}
+impl std::ops::Mul for Matrix4 {
+	type Output = Self;
+
+	fn mul(self, rhs: Self) -> Self::Output {
+		let a = |i: usize, j: usize| self.0[i * 4 + j];
+		let b = |i: usize, j: usize| rhs.0[i * 4 + j];
+
+		Self([
+			(a(0, 0) * b(0, 0)) + (a(0, 1) * b(1, 0)) + (a(0, 2) * b(2, 0)) + (a(0, 3) * b(3, 0)),
+			(a(0, 0) * b(0, 1)) + (a(0, 1) * b(1, 1)) + (a(0, 2) * b(2, 1)) + (a(0, 3) * b(3, 1)),
+			(a(0, 0) * b(0, 2)) + (a(0, 1) * b(1, 2)) + (a(0, 2) * b(2, 2)) + (a(0, 3) * b(3, 2)),
+			(a(0, 0) * b(0, 3)) + (a(0, 1) * b(1, 3)) + (a(0, 2) * b(2, 3)) + (a(0, 3) * b(3, 3)),
+			(a(1, 0) * b(0, 0)) + (a(1, 1) * b(1, 0)) + (a(1, 2) * b(2, 0)) + (a(1, 3) * b(3, 0)),
+			(a(1, 0) * b(0, 1)) + (a(1, 1) * b(1, 1)) + (a(1, 2) * b(2, 1)) + (a(1, 3) * b(3, 1)),
+			(a(1, 0) * b(0, 2)) + (a(1, 1) * b(1, 2)) + (a(1, 2) * b(2, 2)) + (a(1, 3) * b(3, 2)),
+			(a(1, 0) * b(0, 3)) + (a(1, 1) * b(1, 3)) + (a(1, 2) * b(2, 3)) + (a(1, 3) * b(3, 3)),
+			(a(2, 0) * b(0, 0)) + (a(2, 1) * b(1, 0)) + (a(2, 2) * b(2, 0)) + (a(2, 3) * b(3, 0)),
+			(a(2, 0) * b(0, 1)) + (a(2, 1) * b(1, 1)) + (a(2, 2) * b(2, 1)) + (a(2, 3) * b(3, 1)),
+			(a(2, 0) * b(0, 2)) + (a(2, 1) * b(1, 2)) + (a(2, 2) * b(2, 2)) + (a(2, 3) * b(3, 2)),
+			(a(2, 0) * b(0, 3)) + (a(2, 1) * b(1, 3)) + (a(2, 2) * b(2, 3)) + (a(2, 3) * b(3, 3)),
+			(a(3, 0) * b(3, 0)) + (a(3, 1) * b(1, 0)) + (a(3, 2) * b(2, 0)) + (a(3, 3) * b(3, 0)),
+			(a(3, 0) * b(3, 1)) + (a(3, 1) * b(1, 1)) + (a(3, 2) * b(2, 1)) + (a(3, 3) * b(3, 1)),
+			(a(3, 0) * b(3, 2)) + (a(3, 1) * b(1, 2)) + (a(3, 2) * b(2, 2)) + (a(3, 3) * b(3, 2)),
+			(a(3, 0) * b(3, 3)) + (a(3, 1) * b(1, 3)) + (a(3, 2) * b(2, 3)) + (a(3, 3) * b(3, 3)),
+		])
+	}
+}
+
+/** Set of rendering parameters for the graphics side. */
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct RenderParameters {
+	/** Transformation matrix from model space into world space. */
+	pub world_transformation: Matrix4,
+	/** Transformation matrix from world space into projected view space. */
+	pub projection: Matrix4,
+}
+impl RenderParameters {
+	/** Write out the bytes of this structure into a vector.
+	 *
+	 * # Layout
+	 * The bytes written are guaranteed to be laid out in `std430`, as specified
+	 * in the OpenGL 4.5 Specification that can be found at
+	 * https://www.khronos.org/registry/OpenGL/specs/gl/glspec45.core.pdf, under
+	 * Section 7.6.2.2 (Standard Uniform Block Layout).
+	 */
+	pub fn bytes(&self, buf: &mut Vec<u8>) -> usize {
+		let mut written = 0;
+		written += self.world_transformation.bytes(buf);
+		written += self.projection.bytes(buf);
+
+		written
+	}
+}
+
 /** Back-channel the shader pipelines uses to communicate information back to
  * the host device. */
 #[derive(Debug, Clone, PartialEq)]
