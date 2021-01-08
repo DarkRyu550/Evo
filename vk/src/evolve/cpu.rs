@@ -12,7 +12,9 @@ pub struct Cell {
 #[derive(Clone, Debug)]
 pub struct Map {
     cells: Vec<Cell>,
-    width: u32
+    width: u32,
+    #[cfg(debug_assertions)]
+    height: u32
 }
 
 impl Map {
@@ -32,7 +34,9 @@ impl Map {
 
         Self {
             cells,
-            width: params.horizontal_granularity
+            width: params.horizontal_granularity,
+            #[cfg(debug_assertions)]
+            height: params.vertical_granularity
         }
     }
 
@@ -60,6 +64,11 @@ impl Map {
 
     #[inline(always)]
     fn cell_index(&self, x: u32, y: u32) -> usize {
+        #[cfg(debug_assertions)]
+        {
+            assert!(x < self.width, "Invalid X coordinate");
+            assert!(y < self.height, "Invalid Y coordinate");
+        }
         (y * self.width + x) as usize
     }
 
@@ -79,9 +88,23 @@ pub struct State {
 
 impl State {
     fn new(params: &Simulation) -> Self {
+        let population = {
+            let max_x = params.plane_width - 0.01;
+            let max_y = params.plane_height - 0.01;
+            move |params: &Group| {
+                let mut p = crate::dataset::population(params);
+                for mut i in p.iter_mut() {
+                    i.position = [
+                        i.position[0].clamp(0.0, max_x),
+                        i.position[1].clamp(0.0, max_y)
+                    ];
+                }
+                p
+            }
+        };
         Self {
-            herbivores: crate::dataset::population(&params.herbivores),
-            carnivores: crate::dataset::population(&params.predators),
+            herbivores: population(&params.herbivores),
+            carnivores: population(&params.predators),
             map: Map::new(params),
             params: params.clone()
         }
@@ -101,7 +124,6 @@ impl State {
         let center = self.individual_pos(individual);
         let center_val = selector(self.map.cell_at(center.0, center.1));
 
-        let mut inside = false;
         let mut gradient = (0.0f32, 0.0);
 
         for i in top..= bottom {
@@ -112,25 +134,16 @@ impl State {
                     ((x / mag, y / mag), mag)
                 };
 
-                if dist > radius && inside {
-                    let val = selector(self.map.cell_at(j, i));
-                    gradient = (
-                        gradient.0 + direction.0 * (val - center_val),
-                        gradient.1 + direction.1 * (val - center_val),
-                    );
-
-                    inside = false;
-                } else if dist <= radius && !inside {
-                    let val = selector(self.map.cell_at(j, i));
-                    gradient = (
-                        gradient.0 + direction.0 * (val - center_val),
-                        gradient.1 + direction.1 * (val - center_val),
-                    );
-
-                    inside = true;
+                if dist > radius {
+                    continue;
                 }
+
+                let val = selector(self.map.cell_at(j, i));
+                gradient = (
+                    gradient.0 + direction.0 * (val - center_val),
+                    gradient.1 + direction.1 * (val - center_val),
+                );
             }
-            inside = false;
         }
         {
             let mag = (gradient.0.powf(2.0) + gradient.1.powf(2.0)).sqrt();
@@ -151,7 +164,17 @@ impl State {
         };
 
         let herb_step = {
+            let mut map = &mut output.map;
             move |i: &mut Individual| {
+                let (x, y) = self.individual_pos(i);
+                /* energy */
+                {
+                    let cell = map.cell_at_mut(x, y);
+                    let eat = cell.grass.min(1f32 - i.energy);
+                    i.energy += eat;
+                    cell.grass -= eat;
+                }
+
                 let weights = ndarray::arr2(&i.weights);
                 let inputs = ndarray::arr1({
                     let grad_r = self.gradient(&self.params.herbivores, i, |c| c.red);
@@ -178,7 +201,7 @@ impl State {
                     let exp = f.exp();
                     *f = exp / (exp + 1.0);
                 });
-                assert!(result.len() == 5, "Wrong result length");
+                debug_assert!(result.len() == 5, "Wrong result length");
             }
         };
         group_step(&self.herbivores, &mut output.herbivores, herb_step);
@@ -201,8 +224,8 @@ impl State {
 
     fn individual_pos(&self, i: &Individual) -> (u32, u32) {
         (
-            (i.position[0] / self.params.plane_width ).round() as u32,
-            (i.position[1] / self.params.plane_height).round() as u32,
+            (i.position[0] / self.params.plane_width ).floor() as u32,
+            (i.position[1] / self.params.plane_height).floor() as u32,
         )
     }
 }

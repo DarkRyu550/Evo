@@ -61,10 +61,11 @@ void main()
 
     /* Start off by feeding, if possible. */
     FieldLock(field_x, field_y);
-    vec4  feed  = imageLoad(Evo_Field, ivec2(field_x, field_y));
-    float miss  = 1.0 - INDIVIDUAL.energy;
 
-    feed.w -= min(feed.w, miss);
+    vec4  feed  = imageLoad(Evo_Field, ivec2(field_x, field_y));
+    float eat = min(feed.w, 1.0 - INDIVIDUAL.energy);
+    INDIVIDUAL.energy += eat;
+    feed.w -= eat;
     imageStore(Evo_Field, ivec2(field_x, field_y), feed);
 
     FieldUnlock(field_x, field_y);
