@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::dataset::Individual;
 use crate::settings::{Simulation, Group};
 
@@ -154,9 +156,8 @@ impl State {
         }
     }
 
-    fn step(&self, output: &mut State) {
-        //TODO: param for this, right now assumes 60fps
-        let delta = 1f32 / 60.0;
+    fn step(&self, output: &mut State, delta: Duration) {
+        let delta = delta.as_secs_f32();
 
         let bounds_check = {
             let max_x = self.params.plane_width;
@@ -276,14 +277,14 @@ impl World {
         }
     }
 
-    pub fn step(&mut self) {
+    pub fn step(&mut self, delta: Duration) {
         let (a, b) = self.state.split_at_mut(1);
         let (orig, dest) = if self.current_state == 0 {
             (a, b)
         } else {
             (b, a)
         };
-        orig[0].step(&mut dest[0]);
+        orig[0].step(&mut dest[0], delta);
         self.current_state = 1 - self.current_state;
     }
 
