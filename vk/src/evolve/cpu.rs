@@ -260,11 +260,13 @@ impl State {
         group_step(&self.herbivores, &mut output.herbivores, herb_step);
 
         let pred_step = {
+            // Killing is implemented as setting energy to 0, such that the herbivore gets removed on the next
+            // iteration. Code that renders the state should skip any individual with negative energy.
             let herb = &mut output.herbivores;
             fn herbivores_around(vec: &mut Vec<Individual>, x: f32, y: f32, radius: f32) -> impl Iterator<Item=&mut Individual> {
                 let dist = radius.powf(2f32);
                 vec.iter_mut().filter(move |h| {
-                    (h.position[0] - x).powf(2f32) + (h.position[1] - y).powf(2f32) < dist
+                    h.energy > 0.0 && (h.position[0] - x).powf(2f32) + (h.position[1] - y).powf(2f32) < dist
                 })
             }
             move |i: &mut Individual| {
