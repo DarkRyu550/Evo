@@ -166,6 +166,14 @@ impl State {
     }
 
     fn step(&self, output: &mut State, delta: Duration) {
+        // This function *must* copy all (needed) state to output, which means all mutable fields,
+        // otherwise state will get lost. The map is blindly copied at the beginning because it's
+        // only read from the output (and updated there, obviously).
+        // `Individual`s use the group_step function to write to the output, which also handles removal
+        // of dead individuals (and avoids copying at all for those). Herbivores killed by predators
+        // must pay the price of a Vec remove call, but there's not much that can be done, since herbivores
+        // move first (so just setting a "dead" flag on them won't work)
+
         let delta = delta.as_secs_f32();
 
         (&mut output.map.cells[..]).copy_from_slice(&self.map.cells[..]);
