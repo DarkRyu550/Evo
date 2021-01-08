@@ -23,6 +23,8 @@ pub struct Group {
 	pub individuals: u32,
 	/** Maximum number of individuals this groups will allow. */
 	pub budget: u32,
+	/** Spawn area for this group. */
+	pub spawn_range: [f32; 4],
 	/** Radius of vision in simulation board units. */
 	pub view_radius: f32,
 	/** Amount of energy to consume while standing still. */
@@ -65,6 +67,11 @@ pub struct Simulation {
 	 * `plane_height / vertical_granularity`.
 	 */
 	pub vertical_granularity: u32,
+
+	/** Growth rate of the grass on the field, in units per second. */
+	pub growth_rate: f32,
+	/** Decomposition rate of the chemicals on the field, in units per second. */
+	pub decomposition_rate: f32,
 
 	/** Parameters for the herbivore group. */
 	pub herbivores: Group,
@@ -142,9 +149,12 @@ impl Default for Preferences {
 				plane_height: 100.0,
 				horizontal_granularity: 100,
 				vertical_granularity: 100,
+				growth_rate: 0.1,
+				decomposition_rate: 0.1,
 				herbivores: Group {
 					individuals: 100,
 					budget: 1024,
+					spawn_range: [0.0, 100.0, 0.0, 100.0],
 					view_radius: 1.0,
 					metabolism_min: 0.01,
 					metabolism_max: 0.05,
@@ -159,6 +169,7 @@ impl Default for Preferences {
 				predators: Group {
 					individuals: 10,
 					budget: 1024,
+					spawn_range: [0.0, 100.0, 0.0, 100.0],
 					view_radius: 1.0,
 					metabolism_min: 0.02,
 					metabolism_max: 0.10,

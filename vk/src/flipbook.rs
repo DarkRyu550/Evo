@@ -1,4 +1,4 @@
-use wgpu::{BindGroupLayout, Buffer, Texture, BufferUsage, BindGroup, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ShaderStage, BindingType, TextureViewDimension, TextureFormat, Device, TextureDescriptor, Extent3d, TextureDimension, TextureUsage, BindGroupDescriptor, BindGroupEntry, BindingResource, TextureViewDescriptor, TextureAspect, MapMode};
+use wgpu::{BindGroupLayout, Buffer, Texture, BufferUsage, BindGroup, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ShaderStage, BindingType, TextureViewDimension, TextureFormat, Device, TextureDescriptor, Extent3d, TextureDimension, TextureUsage, BindGroupDescriptor, BindGroupEntry, BindingResource, TextureViewDescriptor, TextureAspect, MapMode, Queue};
 use crate::state::State;
 use std::borrow::Borrow;
 use crate::settings::Preferences;
@@ -47,18 +47,18 @@ pub fn channel<A>(state: A, prefs: &Preferences) -> (Producer, Consumer)
 					},
 					count: None
 				},
-				/* Herbivore group. */
+				/* Lock plane. */
 				BindGroupLayoutEntry {
 					binding: 1,
 					visibility: ShaderStage::COMPUTE | ShaderStage::VERTEX,
-					ty: BindingType::StorageBuffer {
-						dynamic: false,
-						min_binding_size: None,
+					ty: BindingType::StorageTexture {
+						dimension: TextureViewDimension::D2,
+						format: TextureFormat::R32Uint,
 						readonly: false
 					},
 					count: None
 				},
-				/* Predator group. */
+				/* Herbivore group. */
 				BindGroupLayoutEntry {
 					binding: 2,
 					visibility: ShaderStage::COMPUTE | ShaderStage::VERTEX,
@@ -69,10 +69,21 @@ pub fn channel<A>(state: A, prefs: &Preferences) -> (Producer, Consumer)
 					},
 					count: None
 				},
-				/* Back channel. */
+				/* Predator group. */
 				BindGroupLayoutEntry {
 					binding: 3,
-					visibility: ShaderStage::COMPUTE,
+					visibility: ShaderStage::COMPUTE | ShaderStage::VERTEX,
+					ty: BindingType::StorageBuffer {
+						dynamic: false,
+						min_binding_size: None,
+						readonly: false
+					},
+					count: None
+				},
+				/* Back channel. */
+				BindGroupLayoutEntry {
+					binding: 4,
+					visibility: ShaderStage::COMPUTE | ShaderStage::VERTEX,
 					ty: BindingType::StorageBuffer {
 						dynamic: false,
 						min_binding_size: None,
@@ -133,6 +144,8 @@ struct Bundle {
 	back_channel: Buffer,
 	/** Handle to the simulation plane storage. */
 	plane: (Texture, u32, u32),
+	/** Handle to the simulation plane lock storage. */
+	lock: (Texture, u32, u32),
 	/** Bind group for the resources in this bundle. */
 	bind: BindGroup
 }
@@ -191,11 +204,35 @@ impl Bundle {
 				format: TextureFormat::Rgba32Float,
 				usage: TextureUsage::STORAGE
 			});
-
 		let plane_view = plane.create_view(
 			&TextureViewDescriptor {
 				label: Some("Flipbook/Dataset/PlaneTextureView"),
 				format: Some(TextureFormat::Rgba32Float),
+				dimension: Some(TextureViewDimension::D2),
+				aspect: TextureAspect::All,
+				base_mip_level: 0,
+				level_count: None,
+				base_array_layer: 0,
+				array_layer_count: None
+			});
+		let lock = device.create_texture(
+			&TextureDescriptor {
+				label: Some("Flipbook/Dataset/LockTexture"),
+				size: Extent3d {
+					width: prefs.simulation.horizontal_granularity,
+					height: prefs.simulation.vertical_granularity,
+					depth: 1
+				},
+				mip_level_count: 1,
+				sample_count: 1,
+				dimension: TextureDimension::D2,
+				format: TextureFormat::R32Uint,
+				usage: TextureUsage::STORAGE
+			});
+		let lock_view = plane.create_view(
+			&TextureViewDescriptor {
+				label: Some("Flipbook/Dataset/PlaneTextureView"),
+				format: Some(TextureFormat::R32Uint),
 				dimension: Some(TextureViewDimension::D2),
 				aspect: TextureAspect::All,
 				base_mip_level: 0,
@@ -215,14 +252,18 @@ impl Bundle {
 					},
 					BindGroupEntry {
 						binding: 1,
-						resource: BindingResource::Buffer(herbivores.slice(..))
+						resource: BindingResource::TextureView(&lock_view)
 					},
 					BindGroupEntry {
 						binding: 2,
-						resource: BindingResource::Buffer(predators.slice(..))
+						resource: BindingResource::Buffer(herbivores.slice(..))
 					},
 					BindGroupEntry {
 						binding: 3,
+						resource: BindingResource::Buffer(predators.slice(..))
+					},
+					BindGroupEntry {
+						binding: 4,
 						resource: BindingResource::Buffer(back_channel.slice(..))
 					}
 				]
@@ -234,6 +275,11 @@ impl Bundle {
 			back_channel,
 			plane: (
 				plane,
+				prefs.simulation.horizontal_granularity,
+				prefs.simulation.vertical_granularity
+			),
+			lock: (
+				lock,
 				prefs.simulation.horizontal_granularity,
 				prefs.simulation.vertical_granularity
 			),

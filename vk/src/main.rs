@@ -29,7 +29,7 @@ mod evolve;
 fn main() {
 	env_logger::builder()
 		/* Disgusting. */
-		.filter(Some("gfx_backend_vulkan"), LevelFilter::Off)
+		/*.filter(Some("gfx_backend_vulkan"), LevelFilter::Off)*/
 		.init();
 
 	let prefs = Preferences::try_load()

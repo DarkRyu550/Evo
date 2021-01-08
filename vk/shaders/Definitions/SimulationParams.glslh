@@ -2,6 +2,10 @@ layout(set = 1, binding = 0) uniform _SimulationParams
 {
     /* Time in seconds since the last iteration. */
     float delta;
+    /* Growth rate of the grass on the field, in units per second. */
+    float growth_rate;
+    /* Decomposition rate of the chemicals on the field, in units per second. */
+    float decomposition_rate;
     /* Radius of vision of individuals in the herbivore group. */
     float herbivore_view_radius;
     /* Radius of vision of individuals in the predator group. */

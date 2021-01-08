@@ -245,10 +245,7 @@ impl<A> Display<A>
 			});
 
 		/* Set up the transformations and the render parameters. */
-		let world_transformation = Matrix4::scale(
-			1.0 / prefs.simulation.plane_width,
-			1.0 / prefs.simulation.plane_height,
-			1.0);
+		let world_transformation = Matrix4::scale(1.0,1.0,1.0);
 		let projection = Matrix4::ortho2d(
 			0.0,
 			prefs.simulation.plane_width,

@@ -137,6 +137,8 @@ impl<A> Evo<A>
 
 		let base_params = crate::dataset::ComputeParameters {
 			delta: 0.0,
+			growth_rate: prefs.simulation.growth_rate,
+			decomposition_rate: prefs.simulation.decomposition_rate,
 			herbivore_view_radius: prefs.simulation.herbivores.view_radius,
 			predator_view_radius: prefs.simulation.predators.view_radius,
 			herbivore_max_speed: prefs.simulation.herbivores.max_speed,

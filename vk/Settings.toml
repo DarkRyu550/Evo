@@ -11,6 +11,9 @@ PlaneHeight = 200.0
 HorizontalGranularity = 200
 VerticalGranularity   = 200
 
+GrowthRate = 0.1
+DecompositionRate = 0.1
+
 [Simulation.Herbivores]
 Budget        = 4096
 Individuals   = 1000

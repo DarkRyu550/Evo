@@ -39,7 +39,22 @@ pub fn population(group: &Group) -> Vec<Individual> {
 		.into_iter()
 		.map(|_| {
 			Individual {
-				position: init2(),
+				position: {
+					let [x, y] = init2();
+
+					let l = f32::min(group.spawn_range[0], group.spawn_range[1]);
+					let r = f32::max(group.spawn_range[0], group.spawn_range[1]);
+					let t = f32::min(group.spawn_range[2], group.spawn_range[3]);
+					let b = f32::max(group.spawn_range[2], group.spawn_range[3]);
+
+					let w = r - l;
+					let h = b - t;
+
+					[
+						l + w * x,
+						t + h * y
+					]
+				},
 				velocity: init2(),
 				energy: init2()[0],
 				weights: [
@@ -207,8 +222,8 @@ impl RenderParameters {
 	 */
 	pub fn bytes(&self, buf: &mut Vec<u8>) -> usize {
 		let mut written = 0;
-		written += self.world_transformation.bytes(buf);
-		written += self.projection.bytes(buf);
+		written += self.world_transformation.transpose().bytes(buf);
+		written += self.projection.transpose().bytes(buf);
 
 		written
 	}
@@ -219,6 +234,10 @@ impl RenderParameters {
 pub struct ComputeParameters {
 	/** Time in seconds since the last iteration. */
 	pub delta: f32,
+	/** Growth rate of the grass on the field, in units per second. */
+	pub growth_rate: f32,
+	/** Decomposition rate of the chemicals on the field, in units per second. */
+	pub decomposition_rate: f32,
 	/** Radius of vision of individuals in the herbivore group. */
 	pub herbivore_view_radius: f32,
 	/** Radius of vision of individuals in the predator group. */
@@ -251,6 +270,8 @@ impl ComputeParameters {
 		let mut written = 0;
 		written += write_vec(buf, [
 			self.delta,
+			self.growth_rate,
+			self.decomposition_rate,
 			self.herbivore_view_radius,
 			self.predator_view_radius,
 			self.herbivore_max_speed,
