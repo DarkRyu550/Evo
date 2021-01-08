@@ -43,13 +43,46 @@ will then be fed to the individuals to make their decisions:
 
 | Parameter | Type | Description |
 | :-------- | :--- | :---------- |
-| Red Direction    | `vec2`  | The [proportional sum][1] of the direction vectors to every tile containing a red   chemical within the field of view of the individual. |
-| Green Direction  | `vec2`  | The [proportional sum][1] of the direction vectors to every tile containing a green chemical within the field of view of the individual. |
-| Blue Direction   | `vec2`  | The [proportional sum][1] of the direction vectors to every tile containing a blue  chemical within the field of view of the individual. |
-| Red Intensity    | `float` | 
+| Velocity         | `vec2`  | The vector of the last move. |
+| Red Gradient     | `vec2`  | The gradient direction of the red chemical on the plane.         |
+| Red Intensity    | `float` | The intensity of the change the red gradient represents .        |
+| Green Gradient   | `vec2`  | The gradient direction of the green chemical on the plane.       |
+| Green Intensity  | `float` | The intensity of the change the green gradient represents.       |
+| Blue Gradient    | `vec2`  | The gradient direction of the blue chemical on the plane.        |
+| Blue Intensity   | `float` | The intensity of the change the blue gradient represents .       |
+| Alpha Gradient   | `vec2`  | The gradient direction of the [alpha channel][1] on the plane.   |
+| Alpha Intensity  | `float` | The intensity of the change the [alpha][1] gradient represents . |
+[1]: #the-alpha-component
 
-[1]: #proportional-sum
+### Internal Values
+The following extra parameters are used to keep track of the state of a given individual:
 
-### Proportional Sum
+| Parameter | Type | Description |
+| :-------- | :--- | :---------- |
+| Position  | `vec2`  | The position of the individual in world space.  |
+| Velocity  | `vec2`  | Used to feed the input component.               |
+| Energy    | `float` | The amount of energy this individual may spend. |
 
 
+### The alpha component
+The alpha component, on the plane, is used for the amount of grass available for the herbivores
+to eat. This resource is limited and regenerates over time. Upon eating from a patch of grass, a
+herbivore will have its energy parameter replenish to the maximum value.
+
+### Walking and Starvation
+Every individual needs energy to live and, thus, spends some of its energy reserves
+on its metabolic processes. The amount of energy spent per unit of time and iteration
+will vary with the immediate velocity of the individual at any given point in time.
+
+Upon reaching a negative value of energy, an individual will starve to death.
+
+### Reproduction
+When an individual reaches a given energetic goal, it will choose to spend some of
+that energy in making offspring. Reproduction works by combining the genetic 
+parameters of both the individual and its mate, chosen by picking off the individual
+that has the most energy, apart from the individual itself.
+
+### Predation
+Predation occurs when a predator gets close enough to a herbivore. The mechanism is
+the same as with the herbivore feeding off the ground, just with a different source
+of nutrition.
