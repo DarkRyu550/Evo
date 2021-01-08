@@ -275,7 +275,12 @@ impl State {
         };
         group_step(&self.carnivores, &mut output.carnivores, pred_step);
 
-        output.map.decay(0.005, 0.005, 0.005, 0.005);
+        output.map.decay(
+            self.params.decomposition_rate,
+            self.params.decomposition_rate,
+            self.params.decomposition_rate,
+            self.params.growth_rate
+        );
     }
 
     fn individual_pos(&self, i: &Individual) -> (u32, u32) {
