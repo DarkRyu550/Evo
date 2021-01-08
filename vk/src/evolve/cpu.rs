@@ -1,5 +1,5 @@
 use crate::dataset::Individual;
-use crate::settings::{Preferences, Simulation, Group};
+use crate::settings::{Simulation, Group};
 
 #[derive(Copy, Clone, Debug)]
 pub struct Cell {
@@ -111,7 +111,10 @@ impl State {
     }
 
     fn gradient<F: Fn(&Cell) -> f32>(&self, group: &Group, individual: &Individual, selector: F) -> (f32, f32, f32) {
-        let radius = group.view_radius;
+        let radius = f32::min(
+            group.view_radius / self.params.plane_width,
+            group.view_radius / self.params.plane_height
+        );
         let (top, bottom, left, right) = {
             let [x, y] = individual.position;
             (
@@ -152,6 +155,9 @@ impl State {
     }
 
     fn step(&self, output: &mut State) {
+        //TODO: param for this, right now assumes 60fps
+        let delta = 1f32 / 60.0;
+
         let bounds_check = {
             let max_x = self.params.plane_width;
             let max_y = self.params.plane_height;
@@ -175,33 +181,60 @@ impl State {
                     cell.grass -= eat;
                 }
 
-                let weights = ndarray::arr2(&i.weights);
-                let inputs = ndarray::arr1({
-                    let grad_r = self.gradient(&self.params.herbivores, i, |c| c.red);
-                    let grad_g = self.gradient(&self.params.herbivores, i, |c| c.green);
-                    let grad_b = self.gradient(&self.params.herbivores, i, |c| c.blue);
-                    &[
-                        i.velocity[0],
-                        i.velocity[1],
-                        grad_r.0,
-                        grad_r.1,
-                        grad_r.2,
-                        grad_g.0,
-                        grad_g.1,
-                        grad_g.2,
-                        grad_b.0,
-                        grad_b.1,
-                        grad_b.2,
-                    ]
-                }).into_shape((11, 1)).expect("Unable to reshape inputs to (11, 1)");
-                let biases = ndarray::arr1(&i.biases)
-                    .into_shape((5, 1)).expect("Unable to reshape biases to (5, 1)");
-                let mut result = weights.dot(&inputs) + biases;
-                result.map_inplace(|f| {
-                    let exp = f.exp();
-                    *f = exp / (exp + 1.0);
-                });
-                debug_assert!(result.len() == 5, "Wrong result length");
+                /* math go brrrr */
+                let nn_result = {
+                    let weights = ndarray::arr2(&i.weights);
+                    let inputs = ndarray::arr1({
+                        let grad_r = self.gradient(&self.params.herbivores, i, |c| c.red);
+                        let grad_g = self.gradient(&self.params.herbivores, i, |c| c.green);
+                        let grad_b = self.gradient(&self.params.herbivores, i, |c| c.blue);
+                        &[
+                            i.velocity[0],
+                            i.velocity[1],
+                            grad_r.0, grad_r.1, grad_r.2,
+                            grad_g.0, grad_g.1, grad_g.2,
+                            grad_b.0, grad_b.1, grad_b.2,
+                        ]
+                    }).into_shape((11, 1)).expect("Unable to reshape inputs to (11, 1)");
+                    let biases = ndarray::arr1(&i.biases)
+                        .into_shape((5, 1)).expect("Unable to reshape biases to (5, 1)");
+                    let mut result = weights.dot(&inputs) + biases;
+                    debug_assert!(result.len() == 5, "Wrong result length");
+                    result.map_inplace(|f| {
+                        let exp = f.exp();
+                        *f = exp / (exp + 1.0);
+                    });
+                    result.into_shape((5,)).expect("Unable to reshape result to (5,)")
+                };
+
+                /* movement and energy */
+                {
+                    let theta = nn_result[0];
+                    let magnitude = nn_result[1];
+                    let mul = self.params.herbivores.max_speed * delta;
+                    let movement = [
+                        magnitude * f32::cos(theta * 2.0 * std::f32::consts::PI) * mul,
+                        magnitude * f32::sin(theta * 2.0 * std::f32::consts::PI) * mul
+                    ];
+
+                    i.position = bounds_check(i.position, movement);
+                    i.velocity = movement;
+
+                    let penalty = {
+                        let v = delta * magnitude;
+                        self.params.herbivores.metabolism_min * (1.0 - v) + self.params.herbivores.metabolism_max * v
+                    };
+
+                    i.energy -= penalty;
+                }
+
+                /* drop pheromones */
+                {
+                    let mut cell = map.cell_at_mut(x, y);
+                    cell.red   = f32::clamp(nn_result[2], 0.0, 1.0);
+                    cell.green = f32::clamp(nn_result[3], 0.0, 1.0);
+                    cell.blue  = f32::clamp(nn_result[4], 0.0, 1.0);
+                }
             }
         };
         group_step(&self.herbivores, &mut output.herbivores, herb_step);
