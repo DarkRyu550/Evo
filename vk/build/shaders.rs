@@ -80,13 +80,21 @@ fn scan<A: AsRef<Path>>(path_ref: A, compiler: &mut Compiler, options: &CompileO
 	 * To circumvent this we use our own include function. */
 	let source = resolve_includes(source, name);
 
-	let compiled = compiler.compile_into_spirv(
+	let compiled = match compiler.compile_into_spirv(
 		&source,
 		ShaderKind::InferFromSource,
 		name,
 		ENTRY_POINT_GLSL,
-		Some(&options))
-		.expect("could not compile source file");
+		Some(&options)){
+		Ok(x) => x,
+		Err(e) => {
+			use shaderc::Error::*;
+			match e {
+				CompilationError(_, s) => panic!("Could not compile source file:\n{}", s),
+				_ => panic!("Could not compile source file: {:?}", e)
+			}
+		}
+	};
 
 	let mut target = File::create(&target_path)
 		.expect("could not create spirv target file");
