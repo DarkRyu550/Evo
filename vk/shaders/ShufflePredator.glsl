@@ -6,33 +6,33 @@
 
 /* Shorthand for the individual. SPIR-V does not have refences as far as I know,
  * so doing this, instead, is not that bad. */
-#define INDIVIDUAL Evo_Herbivores[gl_GlobalInvocationID.x]
+#define INDIVIDUAL Evo_Predators[gl_GlobalInvocationID.x]
 
 void main() {
     /* Sometimes extra tasks will be spawned, make sure we quit out of them
      * immediately so we don't wrongly write to something. */
-    if(gl_GlobalInvocationID.x <  Evo_LowerHerbivore)
+    if(gl_GlobalInvocationID.x <  Evo_LowerPredator)
         return;
-    if(gl_GlobalInvocationID.x >= Evo_UpperHerbivore)
+    if(gl_GlobalInvocationID.x >= Evo_UpperPredator)
         return;
 
     if(INDIVIDUAL.energy >= 0.60)
     {
         /* Reproduce together with the best individual. */
-        int a = int(Evo_LowerHerbivore);
-        for(int i = int(Evo_LowerHerbivore); i < Evo_UpperHerbivore; ++i) {
-            if(Evo_Herbivores[i].energy > Evo_Herbivores[a].energy
+        int a = int(Evo_LowerPredator);
+        for(int i = int(Evo_LowerPredator); i < Evo_UpperPredator; ++i) {
+            if(Evo_Predators[i].energy > Evo_Predators[a].energy
                 && (i != gl_GlobalInvocationID.x || a == gl_GlobalInvocationID.x))
                 a = i;
         }
 
-        #define MATE Evo_Herbivores[a]
-        #define OFFSPRING Evo_Herbivores[Evo_UpperHerbivore - 1]
+        #define MATE Evo_Predators[a]
+        #define OFFSPRING Evo_Predators[Evo_UpperPredator - 1]
 
         MATE.energy -= 0.10;
         INDIVIDUAL.energy -= 0.10;
 
-        Evo_UpperHerbivore++;
+        Evo_UpperPredator++;
 
         OFFSPRING.position = mix(MATE.position, INDIVIDUAL.position, 0.5);
         OFFSPRING.velocity = mix(MATE.velocity, INDIVIDUAL.velocity, 0.5);
@@ -48,11 +48,11 @@ void main() {
     else if(INDIVIDUAL.energy < 0.0)
     {
         /* Die. */
-        Evo_Individual tmp = Evo_Herbivores[Evo_LowerHerbivore];
-        Evo_Herbivores[Evo_LowerHerbivore] = INDIVIDUAL;
+        Evo_Individual tmp = Evo_Predators[Evo_LowerPredator];
+        Evo_Predators[Evo_LowerPredator] = INDIVIDUAL;
         INDIVIDUAL = tmp;
 
-        ++Evo_LowerHerbivore;
+        ++Evo_LowerPredator;
         return;
     }
 }

@@ -126,6 +126,8 @@ pub struct Evo<A> {
 	field_update: Pipeline,
 	simulate_herbivores: Pipeline,
 	shuffle_herbivores: Pipeline,
+	simulate_predators: Pipeline,
+	shuffle_predators: Pipeline,
 }
 impl<A> Evo<A>
 	where A: Borrow<State> {
@@ -165,6 +167,12 @@ impl<A> Evo<A>
 		let shuffle_herbivores = crate::shaders::compute::herbivores::shuffle();
 		let shuffle_herbivores = Pipeline::new(device, &params, &flipbook, shuffle_herbivores);
 
+		let simulate_predators = crate::shaders::compute::predators::simulate();
+		let simulate_predators = Pipeline::new(device, &params, &flipbook, simulate_predators);
+
+		let shuffle_predators = crate::shaders::compute::predators::shuffle();
+		let shuffle_predators = Pipeline::new(device, &params, &flipbook, shuffle_predators);
+
 		let pre_run = crate::shaders::compute::pre_run();
 		let pre_run = Pipeline::new(device, &params, &flipbook, pre_run);
 
@@ -179,7 +187,9 @@ impl<A> Evo<A>
 			pre_run,
 			field_update,
 			simulate_herbivores,
-			shuffle_herbivores
+			shuffle_herbivores,
+			simulate_predators,
+			shuffle_predators
 		}
 	}
 
@@ -198,6 +208,7 @@ impl<A> Evo<A>
 			});
 
 		let herbivores = frame.herbivores().await.end;
+		let predators = frame.predators().await.end;
 
 		let mut encoder = device.create_command_encoder(
 			&CommandEncoderDescriptor {
@@ -221,6 +232,14 @@ impl<A> Evo<A>
 			1,
 			1);
 
+		pass.set_pipeline(&self.simulate_predators.pipeline);
+		pass.set_bind_group(0, frame.bind_group(), &[]);
+		pass.set_bind_group(1, &self.params.bind, &[]);
+		pass.dispatch(
+			predators,
+			1,
+			1);
+
 		pass.set_pipeline(&self.field_update.pipeline);
 		pass.set_bind_group(0, frame.bind_group(), &[]);
 		pass.set_bind_group(1, &self.params.bind, &[]);
@@ -234,6 +253,14 @@ impl<A> Evo<A>
 		pass.set_bind_group(1, &self.params.bind, &[]);
 		pass.dispatch(
 			herbivores,
+			1,
+			1);
+
+		pass.set_pipeline(&self.shuffle_predators.pipeline);
+		pass.set_bind_group(0, frame.bind_group(), &[]);
+		pass.set_bind_group(1, &self.params.bind, &[]);
+		pass.dispatch(
+			predators,
 			1,
 			1);
 
