@@ -20,8 +20,8 @@ pub fn population(group: &Group) -> Vec<Individual> {
 			]
 		} else {
 			[
-				0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
 				0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+				0.0, 0.0, 0.0, 0.0, 0.0,
 			]
 		};
 	let init5 = ||
@@ -32,7 +32,7 @@ pub fn population(group: &Group) -> Vec<Individual> {
 			]
 		} else {
 			[
-				0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+				0.0, 0.0, 0.0, 0.0, 0.0,
 			]
 		};
 
@@ -352,12 +352,12 @@ impl Individual {
 
 		/* Offset 8N: Write the weight vectors. */
 		written += write_vec(buf, &self.biases[0..4]);
-		written += write_vec(buf, &[self.biases[4], 0, 0, 0]);
+		written += write_vec(buf, [self.biases[4], 0.0, 0.0, 0.0]);
 
 		/* Offset 16N: Write the A[0-3,0-3] sub-matrices. */
 		for i in 0..3 {
 			for j in 0..3 {
-				let column = |i| match j {
+				let column = |i: usize| match j {
 					0 => [
 						self.weights[i][0],
 						self.weights[i][1],
@@ -374,21 +374,21 @@ impl Individual {
 						self.weights[i][8],
 						self.weights[i][9],
 						self.weights[i][10],
-						0,
+						0.0,
 					],
-					3 => [0, 0, 0, 0],
+					3 => [0.0, 0.0, 0.0, 0.0],
 					_ => unreachable!()
 				};
 				let row = |i| match i {
 					0..5  => column(i),
-					5..16 => [0, 0, 0, 0],
+					5..16 => [0.0, 0.0, 0.0, 0.0],
 					_ => unreachable!()
 				};
 
-				written += write_vec(buf, &row(i * 4 + 0));
-				written += write_vec(buf, &row(i * 4 + 1));
-				written += write_vec(buf, &row(i * 4 + 2));
-				written += write_vec(buf, &row(i * 4 + 3));
+				written += write_vec(buf, row(i * 4 + 0));
+				written += write_vec(buf, row(i * 4 + 1));
+				written += write_vec(buf, row(i * 4 + 2));
+				written += write_vec(buf, row(i * 4 + 3));
 			}
 		}
 
@@ -419,7 +419,7 @@ fn write_vec<A>(buf: &mut Vec<u8>, dat: A) -> usize
 
 	let data = dat.borrow();
 	(0..data.len()).into_iter()
-		.map(|i| *data[i])
+		.map(|i| data[i])
 		.map(|p| f32::to_ne_bytes(p))
 		.map(|bytes| {
 			buf.extend_from_slice(&bytes[..]);

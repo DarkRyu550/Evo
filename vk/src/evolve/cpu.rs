@@ -1,5 +1,6 @@
 use crate::dataset::Individual;
-use crate::settings::{Preferences, Simulation};
+use crate::settings::{Preferences, Simulation, Group};
+use std::path::is_separator;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Cell {
@@ -87,6 +88,58 @@ impl State {
         }
     }
 
+    fn gradient<F: Fn(&Cell) -> f32>(&self, group: &Group, individual: &Individual, selector: F) -> (f32, f32, f32) {
+        let radius = group.view_radius;
+        let (top, bottom, left, right) = {
+            let [x, y] = individual.position;
+            (
+                (y - radius).clamp(0.0, self.params.plane_height).round() as u32,
+                (y + radius).clamp(0.0, self.params.plane_height).round() as u32,
+                (x - radius).clamp(0.0, self.params.plane_width ).round() as u32,
+                (x + radius).clamp(0.0, self.params.plane_width ).round() as u32,
+            )
+        };
+        let center = self.individual_pos(individual);
+        let center_val = selector(self.map.cell_at(center.0, center.1));
+
+        let mut inside = false;
+        let mut gradient = (0.0f32, 0.0);
+
+        for i in top..= bottom {
+            for j in left..= right {
+                let (px, py) = (i - top, j - left);
+                let (direction, dist) = {
+                    let (x, y) = ((i - center.0) as f32, (j - center.1) as f32);
+                    let mag = (x.powf(2.0) + y.powf(2.0)).sqrt();
+                    ((x / mag, y / mag), mag)
+                };
+
+                if dist > radius && inside {
+                    let val = selector(self.map.cell_at(j, i));
+                    gradient = (
+                        gradient.0 + direction.0 * (val - center_val),
+                        gradient.1 + direction.1 * (val - center_val),
+                    );
+
+                    inside = false;
+                } else if dist <= radius && !inside {
+                    let val = selector(self.map.cell_at(j, i));
+                    gradient = (
+                        gradient.0 + direction.0 * (val - center_val),
+                        gradient.1 + direction.1 * (val - center_val),
+                    );
+
+                    inside = true;
+                }
+            }
+            inside = false;
+        }
+        {
+            let mag = (gradient.0.powf(2.0) + gradient.1.powf(2.0)).sqrt();
+            (gradient.0 / mag, gradient.1 / mag, mag)
+        }
+    }
+
     fn step(&self, output: &mut State) {
         let bounds_check = {
             let max_x = self.params.plane_width;
@@ -101,6 +154,27 @@ impl State {
 
         let herb_step = {
             move |i: &mut Individual| {
+                let weights = ndarray::arr2(&i.weights);
+                let inputs = ndarray::arr1({
+                    let grad_r = self.gradient(&self.params.herbivores, i, |c| c.red);
+                    let grad_g = self.gradient(&self.params.herbivores, i, |c| c.green);
+                    let grad_b = self.gradient(&self.params.herbivores, i, |c| c.blue);
+                    &[
+                        i.velocity[0],
+                        i.velocity[1],
+                        grad_r.0,
+                        grad_r.1,
+                        grad_r.2,
+                        grad_g.0,
+                        grad_g.1,
+                        grad_g.2,
+                        grad_b.0,
+                        grad_b.1,
+                        grad_b.2,
+                    ]
+                });
+                let biases = ndarray::arr1(&i.biases);
+                let result = weights * inputs + biases;
                 i.velocity = [
                     1.0 - i.velocity[0],
                     1.0 - i.velocity[1]
@@ -124,6 +198,13 @@ impl State {
         self.herbivores.iter().filter(move |h| {
             (h.position[0] - x).powf(2f32) + (h.position[1] - y).powf(2f32) < rsquared
         })
+    }
+
+    fn individual_pos(&self, i: &Individual) -> (u32, u32) {
+        (
+            (i.position[0] / self.params.plane_width ).round() as u32,
+            (i.position[1] / self.params.plane_height).round() as u32,
+        )
     }
 }
 
