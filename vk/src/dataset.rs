@@ -203,6 +203,29 @@ impl RenderParameters {
 	}
 }
 
+/** Set of compute parameters. */
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct ComputeParameters {
+	/** Time in seconds since the last iteration. */
+	pub delta: f32
+}
+impl ComputeParameters {
+	/** Write out the bytes of this structure into a vector.
+	 *
+	 * # Layout
+	 * The bytes written are guaranteed to be laid out in `std430`, as specified
+	 * in the OpenGL 4.5 Specification that can be found at
+	 * https://www.khronos.org/registry/OpenGL/specs/gl/glspec45.core.pdf, under
+	 * Section 7.6.2.2 (Standard Uniform Block Layout).
+	 */
+	pub fn bytes(&self, buf: &mut Vec<u8>) -> usize {
+		let mut written = 0;
+		written += write_vec(buf, [self.delta]);
+
+		written
+	}
+}
+
 /** Back-channel the shader pipelines uses to communicate information back to
  * the host device. */
 #[derive(Debug, Clone, PartialEq)]
@@ -251,7 +274,27 @@ impl BackChannel {
 	}
 }
 
-/** The data for an individual. */
+/** The data for an individual.
+ * The input parameters for the individual are the following, in order:
+ * - `0`:  Velocity X
+ * - `1`:  Velocity Y
+ * - `2`:  Red Gradient X
+ * - `3`:  Red Gradient Y
+ * - `4`:  Red Intensity
+ * - `5`:  Green Gradient X
+ * - `6`:  Green Gradient Y
+ * - `7`:  Green Intensity
+ * - `8`:  Blue Gradient X
+ * - `9`:  Blue Gradient Y
+ * - `10`: Blue Intensity
+ *
+ * The output parameters of the individual are the following, in order:
+ * - `0`: Movement Angle ([0; 1[)
+ * - `1`: Movement Speed
+ * - `2`: Red Deposit
+ * - `3`: Green Deposit
+ * - `4`: Blue Deposit
+ */
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Individual {
 	/** Two-dimensional position vector on the simulation plane. */
@@ -260,53 +303,16 @@ pub struct Individual {
 	/** Two-dimensional vector for the direction of the last move. */
 	pub velocity: [f32; 2],
 
-	/** Four-dimensional bias vector for the red chemical.
-	 *
-	 * The first two dimensions will be applied to the gradient direction of
-	 * the chemical in the field of view of the individual. The third dimension
-	 * will be applied to the intensity value of the chemical. */
-	pub red_bias: [f32; 3],
+	/** Amount of energy this individual can still spend. */
+	pub energy: f32,
 
-	/** Four-dimensional bias vector for the green chemical.
-	 *
-	 * The first two dimensions will be applied to the gradient direction of
-	 * the chemical in the field of view of the individual. The third dimension
-	 * will be applied to the intensity value of the chemical. */
-	pub green_bias: [f32; 3],
+	/** Weight matrix. This matrix is laid out such that a value at `[i][j]`
+	 * means the weight neuron `a[j]` will have on neuron `b[i]`, where `a` is
+	 * the input layer and `b` is the output layer. */
+	pub weights: [[f32; 5]; 11],
 
-	/** Four-dimensional bias vector for the blue chemical.
-	 *
-	 * The first two dimensions will be applied to the gradient direction of
-	 * the chemical in the field of view of the individual. The third dimension
-	 * will be applied to the intensity value of the chemical. */
-	pub blue_bias: [f32; 3],
-
-	/** Four-dimensional weight vector for the red chemical.
-	 *
-	 * The first two dimensions will be applied to the gradient direction of
-	 * the chemical in the field of view of the individual. The third dimension
-	 * will be applied to the intensity value of the chemical. */
-	pub red_weight: [f32; 3],
-
-	/** Four-dimensional weight vector for the red chemical.
-	 *
-	 * The first two dimensions will be applied to the gradient direction of
-	 * the chemical in the field of view of the individual. The third dimension
-	 * will be applied to the intensity value of the chemical. */
-	pub green_weight: [f32; 3],
-
-	/** Four-dimensional weight vector for the red chemical.
-	 *
-	 * The first two dimensions will be applied to the gradient direction of
-	 * the chemical in the field of view of the individual. The third dimension
-	 * will be applied to the intensity value of the chemical. */
-	pub blue_weight:  [f32; 3],
-
-	/** Pheromone deposit bias. */
-	pub deposit_bias: [f32; 3],
-
-	/** Movement vector bias. */
-	pub movement_bias: [f32; 2]
+	/** Array of output biases. */
+	pub biases: [f32; 5]
 }
 impl Individual {
 	/** Write out the bytes of this structure into a vector.
@@ -318,7 +324,7 @@ impl Individual {
 	 * Section 7.6.2.2 (Standard Uniform Block Layout).
 	 */
 	pub fn bytes(&self, buf: &mut Vec<u8>) -> usize {
-		let mut written = 0;
+		/*let mut written = 0;
 		written += write_vec(buf, self.position);
 		written += write_vec(buf, self.velocity);
 
@@ -341,7 +347,7 @@ impl Individual {
 		written += write_pad(buf, 4);
 		written += write_vec(buf, self.movement_bias);
 
-		written
+		written*/
 	}
 }
 
