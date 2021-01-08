@@ -1,18 +1,19 @@
 #version 450
 #pragma shader_stage(vertex)
-#include <dataset.glslh>
+#include <Definitions/Dataset.glslh>
+#include <Definitions/RenderParams.glslh>
 
 layout(location = 0) in vec3 Position;
 layout(location = 1) in vec3 Normal;
 
 void main() {
     /* Transform the model point into a world point. */
-    vec4 pos = ModelTransformation * vec4(Position, 1.0);
+    vec4 pos = Params.ModelTransformation * vec4(Position, 1.0);
 
     /* Move this individual by the position it's in. */
     pos.x += Evo_Herbivores[gl_InstanceIndex].position.x;
     pos.y += Evo_Herbivores[gl_InstanceIndex].position.y;
 
     /* Put into view, project and dispatch. */
-    gl_Position = pos;
+    gl_Position = Params.ViewProjection * pos;
 }

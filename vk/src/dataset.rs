@@ -1,6 +1,7 @@
 use crate::settings::Group;
 use std::ops::Range;
 use std::convert::TryInto;
+use std::borrow::Borrow;
 
 /** Create a new population from the given preference group. */
 pub fn population(group: &Group) -> Vec<Individual> {
@@ -10,11 +11,29 @@ pub fn population(group: &Group) -> Vec<Individual> {
 		} else {
 			[ 0.0, 0.0 ]
 		};
-	let init3 = ||
+	let init11 = ||
 		if group.init_to_random {
-			[ rand::random(), rand::random(), rand::random() ]
+			[
+				rand::random(), rand::random(), rand::random(), rand::random(),
+				rand::random(), rand::random(), rand::random(), rand::random(),
+				rand::random(), rand::random(), rand::random(),
+			]
 		} else {
-			[ 0.0, 0.0, 0.0 ]
+			[
+				0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+				0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+			]
+		};
+	let init5 = ||
+		if group.init_to_random {
+			[
+				rand::random(), rand::random(), rand::random(),
+				rand::random(), rand::random(),
+			]
+		} else {
+			[
+				0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+			]
 		};
 
 	(0..group.budget)
@@ -23,25 +42,12 @@ pub fn population(group: &Group) -> Vec<Individual> {
 			Individual {
 				position: init2(),
 				velocity: init2(),
-				red_bias: init3(),
-				green_bias: init3(),
-				blue_bias: init3(),
-				red_weight: init3(),
-				green_weight: init3(),
-				blue_weight: init3(),
-				deposit_bias: [
-					group.signature.red   as f32,
-					group.signature.green as f32,
-					group.signature.blue  as f32,
+				energy: init2()[0],
+				weights: [
+					init11(), init11(), init11(),
+					init11(), init11(),
 				],
-				movement_bias: if group.init_to_random {
-					let angle =
-						  rand::random::<f32>()
-						* std::f32::consts::PI * 2.0;
-					[ angle.cos(), angle.sin() ]
-				} else {
-					[ 0.0, 0.0 ]
-				}
+				biases: init5()
 			}
 		})
 		.collect()
@@ -207,7 +213,13 @@ impl RenderParameters {
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct ComputeParameters {
 	/** Time in seconds since the last iteration. */
-	pub delta: f32
+	pub delta: f32,
+	/** Radius of vision of individuals in the herbivore group. */
+	pub herbivore_view_radius: f32,
+	/** Radius of vision of individuals in the predator group. */
+	pub predator_view_radius: f32,
+	/** Size of the simulation field. */
+	pub simulation: [f32; 2]
 }
 impl ComputeParameters {
 	/** Write out the bytes of this structure into a vector.
@@ -220,7 +232,13 @@ impl ComputeParameters {
 	 */
 	pub fn bytes(&self, buf: &mut Vec<u8>) -> usize {
 		let mut written = 0;
-		written += write_vec(buf, [self.delta]);
+		written += write_vec(buf, [
+			self.delta,
+			self.herbivore_view_radius,
+			self.predator_view_radius
+		]);
+		written += write_pad(buf, 4);
+		written += write_vec(buf, self.simulation);
 
 		written
 	}
@@ -309,7 +327,7 @@ pub struct Individual {
 	/** Weight matrix. This matrix is laid out such that a value at `[i][j]`
 	 * means the weight neuron `a[j]` will have on neuron `b[i]`, where `a` is
 	 * the input layer and `b` is the output layer. */
-	pub weights: [[f32; 5]; 11],
+	pub weights: [[f32; 11]; 5],
 
 	/** Array of output biases. */
 	pub biases: [f32; 5]
@@ -324,30 +342,57 @@ impl Individual {
 	 * Section 7.6.2.2 (Standard Uniform Block Layout).
 	 */
 	pub fn bytes(&self, buf: &mut Vec<u8>) -> usize {
-		/*let mut written = 0;
+		let mut written = 0;
 		written += write_vec(buf, self.position);
 		written += write_vec(buf, self.velocity);
+		written += write_vec(buf, [self.energy]);
 
-		written += write_vec(buf, self.red_bias);
-		written += write_pad(buf, 4);
-		written += write_vec(buf, self.green_bias);
-		written += write_pad(buf, 4);
-		written += write_vec(buf, self.blue_bias);
-		written += write_pad(buf, 4);
+		/* Offset 5N: Pad to the next 4N alignment. */
+		written += write_pad(buf, 12);
 
+		/* Offset 8N: Write the weight vectors. */
+		written += write_vec(buf, &self.biases[0..4]);
+		written += write_vec(buf, &[self.biases[4], 0, 0, 0]);
 
-		written += write_vec(buf, self.red_weight);
-		written += write_pad(buf, 4);
-		written += write_vec(buf, self.green_weight);
-		written += write_pad(buf, 4);
-		written += write_vec(buf, self.blue_weight);
-		written += write_pad(buf, 4);
+		/* Offset 16N: Write the A[0-3,0-3] sub-matrices. */
+		for i in 0..3 {
+			for j in 0..3 {
+				let column = |i| match j {
+					0 => [
+						self.weights[i][0],
+						self.weights[i][1],
+						self.weights[i][2],
+						self.weights[i][3],
+					],
+					1 => [
+						self.weights[i][4],
+						self.weights[i][5],
+						self.weights[i][6],
+						self.weights[i][7],
+					],
+					2 => [
+						self.weights[i][8],
+						self.weights[i][9],
+						self.weights[i][10],
+						0,
+					],
+					3 => [0, 0, 0, 0],
+					_ => unreachable!()
+				};
+				let row = |i| match i {
+					0..5  => column(i),
+					5..16 => [0, 0, 0, 0],
+					_ => unreachable!()
+				};
 
-		written += write_vec(buf, self.deposit_bias);
-		written += write_pad(buf, 4);
-		written += write_vec(buf, self.movement_bias);
+				written += write_vec(buf, &row(i * 4 + 0));
+				written += write_vec(buf, &row(i * 4 + 1));
+				written += write_vec(buf, &row(i * 4 + 2));
+				written += write_vec(buf, &row(i * 4 + 3));
+			}
+		}
 
-		written*/
+		written
 	}
 }
 
@@ -369,9 +414,12 @@ fn write_u32(buf: &mut Vec<u8>, val: u32) -> usize {
 }
 
 /** Writes the given float vector into the buffer. */
-fn write_vec<const N: usize>(buf: &mut Vec<u8>, data: [f32; N]) -> usize {
+fn write_vec<A>(buf: &mut Vec<u8>, dat: A) -> usize
+	where A: Borrow<[f32]> {
+
+	let data = dat.borrow();
 	(0..data.len()).into_iter()
-		.map(|i| data[i])
+		.map(|i| *data[i])
 		.map(|p| f32::to_ne_bytes(p))
 		.map(|bytes| {
 			buf.extend_from_slice(&bytes[..]);

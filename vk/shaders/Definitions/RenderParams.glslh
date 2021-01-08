@@ -1,0 +1,7 @@
+layout(set = 1, binding = 0) uniform _RenderParams
+{
+    /* Transformation from model space into world space. */
+    mat4 ModelTransformation;
+    /* Transformation from world space into projected view space. */
+    mat4 ViewProjection;
+} Params;

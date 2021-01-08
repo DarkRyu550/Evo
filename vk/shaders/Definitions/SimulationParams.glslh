@@ -1,0 +1,11 @@
+layout(set = 1, binding = 0) uniform _SimulationParams
+{
+    /* Time in seconds since the last iteration. */
+    float delta;
+    /* Radius of vision of individuals in the herbivore group. */
+    float herbivore_view_radius;
+    /* Radius of vision of individuals in the predator group. */
+    float predator_view_radius;
+    /* Size of the simulation area. */
+    vec2 field_size;
+} Params;

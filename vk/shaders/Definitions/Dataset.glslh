@@ -1,4 +1,4 @@
-/* dataset.glslh - GLSL header containing definitions and bindings for the
+/* Dataset.glslh - GLSL header containing definitions and bindings for the
  * simulation dataset. Including this file will give you access to the following
  * global values, assuming the dataset binding group is bound to set zero:
  *
@@ -22,6 +22,25 @@
  * | Evo_UpperPredator  | The array index of the last predator alive.           |
  * |--------------------|-------------------------------------------------------|
  *
+ * The input parameters for the individual are the following, in order:
+ *      `0`:  Velocity X
+ *      `1`:  Velocity Y
+ *      `2`:  Red Gradient X
+ *      `3`:  Red Gradient Y
+ *      `4`:  Red Intensity
+ *      `5`:  Green Gradient X
+ *      `6`:  Green Gradient Y
+ *      `7`:  Green Intensity
+ *      `8`:  Blue Gradient X
+ *      `9`:  Blue Gradient Y
+ *      `10`: Blue Intensity
+ *
+ * The output parameters of the individual are the following, in order:
+ *      `0`: Movement Angle ([0; 1[)
+ *      `1`: Movement Speed
+ *      `2`: Red Deposit
+ *      `3`: Green Deposit
+ *      `4`: Blue Deposit
  */
 
 struct Evo_Individual
@@ -30,23 +49,19 @@ struct Evo_Individual
     vec2 position;
     /** Last movement vector this individual had. */
     vec2 velocity;
-
-    vec3 red_bias;
-    vec3 green_bias;
-    vec3 blue_bias;
-
-    vec3 red_weight;
-    vec3 green_weight;
-    vec3 blue_weight;
+    /** Upper and lower nibbles of the bias vector. */
+    vec4 bias[2];
+    /** Components of the weight matrix. */
+    mat4 weights[16];
 };
 
-/* Simulation Binding Section. */
-/*layout(set = 0, binding = 0) imageBuffer Evo_Field;*/
-layout(set = 0, binding = 1) buffer _Evo_HerbivoreGroup
+/* Binding Section. */
+layout(set = 0, binding = 0, rgba32f) uniform image2D Evo_Field;
+layout(set = 0, binding = 1, row_major) buffer _Evo_HerbivoreGroup
 {
     Evo_Individual[] Evo_Herbivores;
 };
-layout(set = 0, binding = 1) buffer _Evo_PredatorGroup
+layout(set = 0, binding = 1, row_major) buffer _Evo_PredatorGroup
 {
     Evo_Individual[] Evo_Predators;
 };
@@ -57,13 +72,4 @@ layout(set = 0, binding = 2) buffer _Evo_BackChannel
 
     uint Evo_LowerPredator;
     uint Evo_UpperPredator;
-};
-
-/* Graphics and Input Section. */
-layout(set = 1, binding = 0) uniform Display
-{
-    /* Transformation from model space into world space. */
-    mat4 ModelTransformation;
-    /* Transformation from world space into projected view space. */
-    mat4 ViewProjection;
 };
