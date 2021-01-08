@@ -6,7 +6,7 @@ pub struct Cell {
     pub red: f32,
     pub green: f32,
     pub blue: f32,
-    pub grass: f32
+    pub grass: f32,
 }
 
 #[derive(Clone, Debug)]
@@ -14,7 +14,7 @@ pub struct Map {
     cells: Vec<Cell>,
     width: u32,
     #[cfg(debug_assertions)]
-    height: u32
+    height: u32,
 }
 
 impl Map {
@@ -28,7 +28,7 @@ impl Map {
                 red: 0.0,
                 green: 0.0,
                 blue: 0.0,
-                grass: 0.0
+                grass: 0.0,
             })
         }
 
@@ -36,7 +36,7 @@ impl Map {
             cells,
             width: params.horizontal_granularity,
             #[cfg(debug_assertions)]
-            height: params.vertical_granularity
+            height: params.vertical_granularity,
         }
     }
 
@@ -65,10 +65,10 @@ impl Map {
     #[inline(always)]
     fn cell_index(&self, x: u32, y: u32) -> usize {
         #[cfg(debug_assertions)]
-        {
-            assert!(x < self.width, "Invalid X coordinate");
-            assert!(y < self.height, "Invalid Y coordinate");
-        }
+            {
+                assert!(x < self.width, "Invalid X coordinate");
+                assert!(y < self.height, "Invalid Y coordinate");
+            }
         (y * self.width + x) as usize
     }
 
@@ -106,22 +106,22 @@ impl State {
             herbivores: population(&params.herbivores),
             carnivores: population(&params.predators),
             map: Map::new(params),
-            params: params.clone()
+            params: params.clone(),
         }
     }
 
     fn gradient<F: Fn(&Cell) -> f32>(&self, group: &Group, individual: &Individual, selector: F) -> (f32, f32, f32) {
         let radius = f32::min(
             group.view_radius / self.params.plane_width,
-            group.view_radius / self.params.plane_height
+            group.view_radius / self.params.plane_height,
         );
         let (top, bottom, left, right) = {
             let [x, y] = individual.position;
             (
                 (y - radius).clamp(0.0, self.params.plane_height).round() as u32,
                 (y + radius).clamp(0.0, self.params.plane_height).round() as u32,
-                (x - radius).clamp(0.0, self.params.plane_width ).round() as u32,
-                (x + radius).clamp(0.0, self.params.plane_width ).round() as u32,
+                (x - radius).clamp(0.0, self.params.plane_width).round() as u32,
+                (x + radius).clamp(0.0, self.params.plane_width).round() as u32,
             )
         };
         let center = self.individual_pos(individual);
@@ -129,8 +129,8 @@ impl State {
 
         let mut gradient = (0.0f32, 0.0);
 
-        for i in top..= bottom {
-            for j in left..= right {
+        for i in top..=bottom {
+            for j in left..=right {
                 let (direction, dist) = {
                     let (x, y) = ((i - center.0) as f32, (j - center.1) as f32);
                     let mag = (x.powf(2.0) + y.powf(2.0)).sqrt();
@@ -204,7 +204,7 @@ impl State {
                         let exp = f.exp();
                         *f = exp / (exp + 1.0);
                     });
-                    result.into_shape((5,)).expect("Unable to reshape result to (5,)")
+                    result.into_shape((5, )).expect("Unable to reshape result to (5,)")
                 };
 
                 /* movement and energy */
@@ -231,9 +231,9 @@ impl State {
                 /* drop pheromones */
                 {
                     let mut cell = map.cell_at_mut(x, y);
-                    cell.red   = f32::clamp(nn_result[2], 0.0, 1.0);
+                    cell.red = f32::clamp(nn_result[2], 0.0, 1.0);
                     cell.green = f32::clamp(nn_result[3], 0.0, 1.0);
-                    cell.blue  = f32::clamp(nn_result[4], 0.0, 1.0);
+                    cell.blue = f32::clamp(nn_result[4], 0.0, 1.0);
                 }
             }
         };
@@ -241,9 +241,7 @@ impl State {
 
         let pred_step = {
             let herb = &mut output.herbivores;
-            move |i: &mut Individual| {
-
-            }
+            move |i: &mut Individual| {}
         };
         group_step(&self.carnivores, &mut output.carnivores, pred_step);
     }
@@ -257,7 +255,7 @@ impl State {
 
     fn individual_pos(&self, i: &Individual) -> (u32, u32) {
         (
-            (i.position[0] / self.params.plane_width ).floor() as u32,
+            (i.position[0] / self.params.plane_width).floor() as u32,
             (i.position[1] / self.params.plane_height).floor() as u32,
         )
     }
@@ -266,7 +264,7 @@ impl State {
 #[derive(Clone, Debug)]
 pub struct World {
     state: [State; 2],
-    current_state: usize
+    current_state: usize,
 }
 
 impl World {
@@ -274,7 +272,7 @@ impl World {
         let state = State::new(params);
         World {
             state: [state.clone(), state.clone()],
-            current_state: 0
+            current_state: 0,
         }
     }
 
