@@ -10,36 +10,61 @@ struct Cell {
 }
 
 #[derive(Clone, Debug)]
-pub struct World {
+struct State {
     herbivores: Vec<Individual>,
     carnivores: Vec<Individual>,
     map: Vec<Cell>,
-    width: u32,
-    height: u32
+    params: Simulation,
 }
 
-impl World {
-    pub fn new(settings: &Simulation) -> World {
+impl State {
+    fn new(params: &Simulation) -> Self {
         let mut map = Vec::with_capacity(
-            (settings.horizontal_granularity * settings.vertical_granularity) as usize
+            (params.horizontal_granularity * params.vertical_granularity) as usize
         );
 
         for _ in 0..map.capacity() {
             map.push(Cell {
-                red: 0f32,
-                green: 0f32,
-                blue: 0f32,
-                grass: 0f32
+                red: 0.0,
+                green: 0.0,
+                blue: 0.0,
+                grass: 0.0
             })
         }
 
-        World {
-            herbivores: crate::dataset::population(&settings.herbivores),
-            carnivores: crate::dataset::population(&settings.predators),
+        Self {
+            herbivores: crate::dataset::population(&params.herbivores),
+            carnivores: crate::dataset::population(&params.predators),
             map,
-            width: settings.horizontal_granularity,
-            height: settings.vertical_granularity
+            params: params.clone()
         }
+    }
+
+    fn step(&self, output: &mut State) {
+        let bounds_check = {
+            let max_x = self.params.plane_width;
+            let max_y = self.params.plane_height;
+            move |pos: [f32; 2], vel: [f32; 2]| {
+                [
+                    (pos[0] + vel[0]).clamp(0.0, max_x),
+                    (pos[1] + vel[1]).clamp(0.0, max_y)
+                ]
+            };
+        };
+        let herb_step = {
+            move |i: &mut Individual| {
+
+            }
+        };
+        group_step(&self.herbivores, &mut output.herbivores, herb_step);
+
+        let pred_step = {
+            let herb = &mut output.herbivores;
+            move |i: &mut Individual| {
+
+            }
+        };
+        group_step(&self.carnivores, &mut output.carnivores, pred_step);
     }
 
     pub fn herbivores_at(&self, x: f32, y: f32, radius: f32) -> impl Iterator<Item=&Individual> {
@@ -63,6 +88,50 @@ impl World {
 
     #[inline(always)]
     fn cell_index(&self, x: u32, y: u32) -> usize {
-        (y * self.width + x) as usize
+        (y * self.params.horizontal_granularity + x) as usize
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct World {
+    state: [State; 2],
+    current_state: usize
+}
+
+impl World {
+    pub fn new(params: &Simulation) -> Self {
+        let state = State::new(params);
+        World {
+            state: [state.clone(), state.clone()],
+            current_state: 0
+        }
+    }
+
+    pub fn step(&mut self) {
+        let (a, b) = self.state.split_at_mut(1);
+        let (orig, dest) = if self.current_state == 0 {
+            (a, b)
+        } else {
+            (b, a)
+        };
+        orig[0].step(&mut dest[0]);
+        self.current_state = 1 - self.current_state;
+    }
+}
+
+
+fn group_step<F: FnMut(&mut Individual) -> ()>(src: &Vec<Individual>, dest: &mut Vec<Individual>, mut f: F) {
+    //let mut items = std::mem::replace(v, vec!());
+    //items = items.into_iter()
+    src.iter()
+        .filter_map(|i| {
+            if i.energy <= 0.0 {
+                return None;
+            }
+            let mut i = *i;
+            f(&mut i);
+            Some(i)
+        })
+        .for_each(|i| dest.push(i));
+    //*v = items;
 }
