@@ -10,11 +10,11 @@ pub fn population(group: &Group) -> Vec<Individual> {
 		} else {
 			[ 0.0, 0.0 ]
 		};
-	let init3 = ||
+	let init5 = ||
 		if group.init_to_random {
-			[ rand::random(), rand::random(), rand::random() ]
+			[ rand::random(), rand::random(), rand::random(), rand::random(), rand::random() ]
 		} else {
-			[ 0.0, 0.0, 0.0 ]
+			[ 0.0, 0.0, 0.0, 0.0, 0.0 ]
 		};
 
 	(0..group.budget)
@@ -23,25 +23,22 @@ pub fn population(group: &Group) -> Vec<Individual> {
 			Individual {
 				position: init2(),
 				velocity: init2(),
-				red_bias: init3(),
-				green_bias: init3(),
-				blue_bias: init3(),
-				red_weight: init3(),
-				green_weight: init3(),
-				blue_weight: init3(),
-				deposit_bias: [
-					group.signature.red   as f32,
-					group.signature.green as f32,
-					group.signature.blue  as f32,
+				energy: 100f32,
+				weights: [
+					/* just kill me already */
+					init5(),
+					init5(),
+					init5(),
+					init5(),
+					init5(),
+					init5(),
+					init5(),
+					init5(),
+					init5(),
+					init5(),
+					init5()
 				],
-				movement_bias: if group.init_to_random {
-					let angle =
-						  rand::random::<f32>()
-						* std::f32::consts::PI * 2.0;
-					[ angle.cos(), angle.sin() ]
-				} else {
-					[ 0.0, 0.0 ]
-				}
+				biases: init5()
 			}
 		})
 		.collect()
@@ -324,6 +321,7 @@ impl Individual {
 	 * Section 7.6.2.2 (Standard Uniform Block Layout).
 	 */
 	pub fn bytes(&self, buf: &mut Vec<u8>) -> usize {
+		0
 		/*let mut written = 0;
 		written += write_vec(buf, self.position);
 		written += write_vec(buf, self.velocity);
