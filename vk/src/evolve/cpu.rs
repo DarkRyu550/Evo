@@ -42,6 +42,15 @@ impl Map {
         }
     }
 
+    pub fn decay(&mut self, decay_red: f32, decay_green: f32, decay_blue: f32, grass_growth: f32) {
+        for mut c in self.cells.iter_mut() {
+            c.red -= decay_red;
+            c.green -= decay_green;
+            c.blue -= decay_blue;
+            c.grass += grass_growth;
+        }
+    }
+
     pub fn cells_around(&self, x: u32, y: u32, radius: f32) -> impl Iterator<Item=&Cell> {
         let rsquared = radius.powf(2f32);
         self.cells.iter().enumerate().filter(move |(pos, cell)| {
@@ -159,6 +168,8 @@ impl State {
     fn step(&self, output: &mut State, delta: Duration) {
         let delta = delta.as_secs_f32();
 
+        (&mut output.map.cells[..]).copy_from_slice(&self.map.cells[..]);
+
         let bounds_check = {
             let max_x = self.params.plane_width;
             let max_y = self.params.plane_height;
@@ -245,6 +256,8 @@ impl State {
             move |i: &mut Individual| {}
         };
         group_step(&self.carnivores, &mut output.carnivores, pred_step);
+
+        output.map.decay(0.005, 0.005, 0.005, 0.005);
     }
 
     pub fn herbivores_around(&self, x: f32, y: f32, radius: f32) -> impl Iterator<Item=&Individual> {
