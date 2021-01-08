@@ -355,13 +355,14 @@ pub struct Individual {
 	pub biases: [f32; 5]
 }
 impl Individual {
-	const BYTE_SIZE: usize = 8 /* position */
-		+ 8 /* velocity */
-		+ 4 /* energy */
-	    + 12 /* pad */
-		+ 32 /* biases */
-		+ 64 /* weights */
-		+ 0; /* done */
+	const BYTE_SIZE: usize = 0
+	    + 8      /* position */
+		+ 8      /* velocity */
+		+ 4      /* energy */
+	    + 12     /* pad */
+		+ 32     /* biases */
+		+ 64 * 9 /* weights */
+		+ 0;     /* done */
 
 	/** Write out the bytes of this structure into a vector.
 	 *
