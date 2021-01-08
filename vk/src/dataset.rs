@@ -56,6 +56,12 @@ pub fn population(group: &Group) -> Vec<Individual> {
  * `std430`, storing it in the given buffer, after a clear operation. */
 pub fn population_bytes_with_buffer(group: &Group, mut buf: Vec<u8>) -> Vec<u8> {
 	buf.clear();
+	{
+		let needed = group.budget as usize * Individual::BYTE_SIZE;
+		if buf.capacity() < needed {
+			buf.reserve_exact(needed - buf.capacity());
+		}
+	}
 	population(group)
 		.into_iter()
 		.fold(buf, |mut data, individual| {
@@ -67,7 +73,7 @@ pub fn population_bytes_with_buffer(group: &Group, mut buf: Vec<u8>) -> Vec<u8> 
 /** Create a new population with the given parameters and serialize it to
  * `std430`, storing it in a newly allocated buffer. */
 pub fn population_bytes(group: &Group) -> Vec<u8> {
-	population_bytes_with_buffer(group, Vec::new())
+	population_bytes_with_buffer(group, Vec::with_capacity(group.budget as usize * Individual::BYTE_SIZE))
 }
 
 /** Matrix type. */
@@ -349,6 +355,14 @@ pub struct Individual {
 	pub biases: [f32; 5]
 }
 impl Individual {
+	const BYTE_SIZE: usize = 8 /* position */
+		+ 8 /* velocity */
+		+ 4 /* energy */
+	    + 12 /* pad */
+		+ 32 /* biases */
+		+ 64 /* weights */
+		+ 0; /* done */
+
 	/** Write out the bytes of this structure into a vector.
 	 *
 	 * # Layout
@@ -357,7 +371,7 @@ impl Individual {
 	 * https://www.khronos.org/registry/OpenGL/specs/gl/glspec45.core.pdf, under
 	 * Section 7.6.2.2 (Standard Uniform Block Layout).
 	 */
-	pub fn bytes(&self, buf: &mut Vec<u8>) -> usize {
+	pub fn bytes(&self, buf: &mut Vec<u8>) {
 		let mut written = 0;
 		written += write_vec(buf, self.position);
 		written += write_vec(buf, self.velocity);
@@ -410,8 +424,7 @@ impl Individual {
 			}
 		}
 
-
-		written
+		debug_assert_eq!(written, Self::BYTE_SIZE, "Wrong byte size after write, please update Individual::BYTE_SIZE");
 	}
 }
 

@@ -260,19 +260,20 @@ impl State {
         group_step(&self.herbivores, &mut output.herbivores, herb_step);
 
         let pred_step = {
-            let herb = &mut output.herbivores;
-            move |i: &mut Individual| {}
+            let herb= &mut output.herbivores;
+            fn herbivores_around(vec: &mut Vec<Individual>, x: f32, y: f32, radius: f32) -> impl Iterator<Item=&mut Individual> {
+                let dist = radius.powf(2f32);
+                vec.iter_mut().filter(move |h| {
+                    (h.position[0] - x).powf(2f32) + (h.position[1] - y).powf(2f32) < dist
+                })
+            }
+            move |i: &mut Individual| {
+                //TODO
+            }
         };
         group_step(&self.carnivores, &mut output.carnivores, pred_step);
 
         output.map.decay(0.005, 0.005, 0.005, 0.005);
-    }
-
-    pub fn herbivores_around(&self, x: f32, y: f32, radius: f32) -> impl Iterator<Item=&Individual> {
-        let rsquared = radius.powf(2f32);
-        self.herbivores.iter().filter(move |h| {
-            (h.position[0] - x).powf(2f32) + (h.position[1] - y).powf(2f32) < rsquared
-        })
     }
 
     fn individual_pos(&self, i: &Individual) -> (u32, u32) {
