@@ -271,7 +271,7 @@ impl Bundle {
 			data.bytes(&mut buf);
 
 			let target = &mut *mapped;
-			target.copy_from_slice(&buf[..]);
+			(&mut target[..buf.len()]).copy_from_slice(&buf[..]);
 
 			buf.len()
 		};
