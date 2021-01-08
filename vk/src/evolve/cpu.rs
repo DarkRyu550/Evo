@@ -53,7 +53,7 @@ impl Map {
 
     pub fn cells_around(&self, x: u32, y: u32, radius: f32) -> impl Iterator<Item=&Cell> {
         let rsquared = radius.powf(2f32);
-        self.cells.iter().enumerate().filter(move |(pos, cell)| {
+        self.cells.iter().enumerate().filter(move |(pos, _cell)| {
             let (cx, cy) = self.pos_of(*pos);
             let dx = cx as i32 - x as i32;
             let dy = cy as i32 - y as i32;
@@ -190,7 +190,7 @@ impl State {
         };
 
         let herb_step = {
-            let mut map = &mut output.map;
+            let map = &mut output.map;
             move |i: &mut Individual| {
                 let (x, y) = self.individual_pos(i);
                 /* energy */
@@ -260,7 +260,7 @@ impl State {
         group_step(&self.herbivores, &mut output.herbivores, herb_step);
 
         let pred_step = {
-            let herb= &mut output.herbivores;
+            let herb = &mut output.herbivores;
             fn herbivores_around(vec: &mut Vec<Individual>, x: f32, y: f32, radius: f32) -> impl Iterator<Item=&mut Individual> {
                 let dist = radius.powf(2f32);
                 vec.iter_mut().filter(move |h| {

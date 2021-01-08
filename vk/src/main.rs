@@ -1,4 +1,5 @@
 #![feature(exclusive_range_pattern)]
+#![cfg_attr(debug_assertions, allow(dead_code, unused_variables))]
 
 #[macro_use]
 extern crate log;
