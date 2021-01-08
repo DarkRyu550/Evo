@@ -91,6 +91,7 @@ void main()
     vec3 red   = GradientIntensityAt(field_x, field_y, 0, view);
     vec3 green = GradientIntensityAt(field_x, field_y, 1, view);
     vec3 blue  = GradientIntensityAt(field_x, field_y, 2, view);
+    vec3 alpha = GradientIntensityAt(field_x, field_y, 3, view);
 
     nn_input[0][2] = red.x;
     nn_input[0][3] = red.y;
@@ -101,6 +102,9 @@ void main()
     nn_input[2][0] = blue.x;
     nn_input[2][1] = blue.y;
     nn_input[2][2] = blue.z;
+    nn_input[2][3] = alpha.x;
+    nn_input[3][0] = alpha.y;
+    nn_input[3][1] = alpha.z;
 
     /* Calculate an output value. */
     vec4[4] nn_output = MatrixMultiplyByVec16(INDIVIDUAL.weights, nn_input);

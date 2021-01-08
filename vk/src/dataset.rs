@@ -10,17 +10,19 @@ pub fn population(group: &Group) -> Vec<Individual> {
 		} else {
 			[ 0.0, 0.0 ]
 		};
-	let init11 = ||
+	let init14 = ||
 		if group.init_to_random {
 			[
 				rand::random(), rand::random(), rand::random(), rand::random(),
 				rand::random(), rand::random(), rand::random(), rand::random(),
-				rand::random(), rand::random(), rand::random(),
+				rand::random(), rand::random(), rand::random(), rand::random(),
+				rand::random(), rand::random(),
 			]
 		} else {
 			[
 				0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-				0.0, 0.0, 0.0, 0.0, 0.0,
+				0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+				0.0, 0.0
 			]
 		};
 	let init5 = ||
@@ -58,8 +60,8 @@ pub fn population(group: &Group) -> Vec<Individual> {
 				velocity: init2(),
 				energy: init2()[0],
 				weights: [
-					init11(), init11(), init11(),
-					init11(), init11(),
+					init14(), init14(), init14(),
+					init14(), init14(),
 				],
 				biases: init5()
 			}
@@ -370,7 +372,7 @@ pub struct Individual {
 	/** Weight matrix. This matrix is laid out such that a value at `[i][j]`
 	 * means the weight neuron `a[j]` will have on neuron `b[i]`, where `a` is
 	 * the input layer and `b` is the output layer. */
-	pub weights: [[f32; 11]; 5],
+	pub weights: [[f32; 14]; 5],
 
 	/** Array of output biases. */
 	pub biases: [f32; 5]
@@ -427,9 +429,14 @@ impl Individual {
 							self.weights[i][8],
 							self.weights[i][9],
 							self.weights[i][10],
+							self.weights[i][11],
+						],
+						3 => [
+							self.weights[i][12],
+							self.weights[i][13],
+							0.0,
 							0.0,
 						],
-						3 => [0.0, 0.0, 0.0, 0.0],
 						_ => unreachable!()
 					}
 				};
