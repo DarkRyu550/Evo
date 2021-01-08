@@ -121,8 +121,7 @@ impl World {
 
 
 fn group_step<F: FnMut(&mut Individual) -> ()>(src: &Vec<Individual>, dest: &mut Vec<Individual>, mut f: F) {
-    //let mut items = std::mem::replace(v, vec!());
-    //items = items.into_iter()
+    dest.clear();
     src.iter()
         .filter_map(|i| {
             if i.energy <= 0.0 {
@@ -133,5 +132,4 @@ fn group_step<F: FnMut(&mut Individual) -> ()>(src: &Vec<Individual>, dest: &mut
             Some(i)
         })
         .for_each(|i| dest.push(i));
-    //*v = items;
 }
