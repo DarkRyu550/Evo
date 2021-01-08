@@ -1,6 +1,5 @@
 use crate::dataset::Individual;
 use crate::settings::{Preferences, Simulation, Group};
-use std::path::is_separator;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Cell {
@@ -107,7 +106,6 @@ impl State {
 
         for i in top..= bottom {
             for j in left..= right {
-                let (px, py) = (i - top, j - left);
                 let (direction, dist) = {
                     let (x, y) = ((i - center.0) as f32, (j - center.1) as f32);
                     let mag = (x.powf(2.0) + y.powf(2.0)).sqrt();
@@ -172,14 +170,15 @@ impl State {
                         grad_b.1,
                         grad_b.2,
                     ]
+                }).into_shape((11, 1)).expect("Unable to reshape inputs to (11, 1)");
+                let biases = ndarray::arr1(&i.biases)
+                    .into_shape((5, 1)).expect("Unable to reshape biases to (5, 1)");
+                let mut result = weights.dot(&inputs) + biases;
+                result.map_inplace(|f| {
+                    let exp = f.exp();
+                    *f = exp / (exp + 1.0);
                 });
-                let biases = ndarray::arr1(&i.biases);
-                let result = weights * inputs + biases;
-                i.velocity = [
-                    1.0 - i.velocity[0],
-                    1.0 - i.velocity[1]
-                ];
-                i.position = bounds_check(i.position, i.velocity)
+                assert!(result.len() == 5, "Wrong result length");
             }
         };
         group_step(&self.herbivores, &mut output.herbivores, herb_step);
@@ -242,7 +241,6 @@ impl World {
         &mut self.state[self.current_state]
     }
 }
-
 
 fn group_step<F: FnMut(&mut Individual) -> ()>(src: &Vec<Individual>, dest: &mut Vec<Individual>, mut f: F) {
     dest.clear();
