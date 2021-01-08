@@ -356,13 +356,13 @@ pub struct Individual {
 }
 impl Individual {
 	const BYTE_SIZE: usize = 0
-	    + 8      /* position */
-		+ 8      /* velocity */
-		+ 4      /* energy */
-	    + 12     /* pad */
-		+ 32     /* biases */
-		+ 64 * 9 /* weights */
-		+ 0;     /* done */
+	    + 8       		/* position */
+		+ 8      		/* velocity */
+		+ 4       		/* energy */
+	    + 12      		/* pad */
+		+ 32      		/* biases */
+		+ 64 * 4 * 4	/* weights */
+		+ 0;     		/* done */
 
 	/** Write out the bytes of this structure into a vector.
 	 *
@@ -386,8 +386,8 @@ impl Individual {
 		written += write_vec(buf, &[self.biases[4], 0.0, 0.0, 0.0]);
 
 		/* Offset 16N: Write the A[0-3,0-3] sub-matrices. */
-		for i in 0..3 {
-			for j in 0..3 {
+		for i in 0..=3 {
+			for j in 0..=3 {
 				let column = |i: usize| -> [f32; 4] {
 					match j {
 						0 => [
