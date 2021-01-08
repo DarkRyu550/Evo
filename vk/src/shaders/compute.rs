@@ -1,3 +1,5 @@
+use wgpu::ShaderModuleSource;
+
 /** Compute shaders for the herbivore group. */
 pub mod herbivores {
 	use wgpu::ShaderModuleSource;
@@ -13,5 +15,12 @@ pub mod herbivores {
 	}
 }
 
+/** Pre run shader for setting everything up. */
+pub fn pre_run() -> ShaderModuleSource<'static> {
+	wgpu::include_spirv!(concat!(env!("OUT_DIR"), "/shaders/PreRun.spv"))
+}
 
-
+/** Shader for running updates on the simulation field. */
+pub fn field_update() -> ShaderModuleSource<'static> {
+	wgpu::include_spirv!(concat!(env!("OUT_DIR"), "/shaders/FieldUpdate.spv"))
+}

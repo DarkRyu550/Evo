@@ -1,4 +1,4 @@
-use wgpu::{BindGroupLayout, Buffer, Texture, BufferUsage, BindGroup, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ShaderStage, BindingType, TextureViewDimension, TextureFormat, Device, TextureDescriptor, Extent3d, TextureDimension, TextureUsage, BindGroupDescriptor, BindGroupEntry, BindingResource, TextureViewDescriptor, TextureAspect, MapMode, Queue};
+use wgpu::{BindGroupLayout, Buffer, Texture, BufferUsage, BindGroup, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ShaderStage, BindingType, TextureViewDimension, TextureFormat, Device, TextureDescriptor, Extent3d, TextureDimension, TextureUsage, BindGroupDescriptor, BindGroupEntry, BindingResource, TextureViewDescriptor, TextureAspect, MapMode, Queue, TextureCopyView, Origin3d, TextureDataLayout};
 use crate::state::State;
 use std::borrow::Borrow;
 use crate::settings::Preferences;
@@ -95,7 +95,11 @@ pub fn channel<A>(state: A, prefs: &Preferences) -> (Producer, Consumer)
 		});
 
 	let bundles = {
-		let mut iter = BundleFactory::new(device, &layout, prefs);
+		let mut iter = BundleFactory::new(
+			device,
+			state.borrow().queue(),
+			&layout,
+			prefs);
 		[
 			iter.next().unwrap(),
 			iter.next().unwrap(),
@@ -154,6 +158,7 @@ impl Bundle {
 	 * the given initial buffer data. */
 	fn new_with_populations<A, B>(
 		device: &Device,
+		queue:  &Queue,
 		layout: &BindGroupLayout,
 		prefs: &Preferences,
 		herbivores: A,
@@ -202,7 +207,7 @@ impl Bundle {
 				sample_count: 1,
 				dimension: TextureDimension::D2,
 				format: TextureFormat::Rgba32Float,
-				usage: TextureUsage::STORAGE
+				usage: TextureUsage::STORAGE | TextureUsage::COPY_DST
 			});
 		let plane_view = plane.create_view(
 			&TextureViewDescriptor {
@@ -215,6 +220,39 @@ impl Bundle {
 				base_array_layer: 0,
 				array_layer_count: None
 			});
+
+		let mut clear = Vec::new();
+		clear.resize_with(
+			(prefs.simulation.horizontal_granularity
+				* prefs.simulation.vertical_granularity * 16) as usize, || 0_u8);
+		clear.chunks_exact_mut(4)
+			.for_each(|source| {
+				let [x, y, z, w] = f32::to_ne_bytes(0.0);
+
+				source[0] = x;
+				source[1] = y;
+				source[2] = z;
+				source[3] = w;
+			});
+
+		queue.write_texture(
+			TextureCopyView {
+				texture: &plane,
+				mip_level: 0,
+				origin: Origin3d { x: 0, y: 0, z: 0 }
+			},
+			&clear[..],
+			TextureDataLayout {
+				offset: 0,
+				bytes_per_row: 16 * prefs.simulation.horizontal_granularity,
+				rows_per_image: prefs.simulation.vertical_granularity
+			},
+			Extent3d {
+				width: prefs.simulation.horizontal_granularity,
+				height: prefs.simulation.vertical_granularity,
+				depth: 1
+			});
+
 		let lock = device.create_texture(
 			&TextureDescriptor {
 				label: Some("Flipbook/Dataset/LockTexture"),
@@ -229,7 +267,7 @@ impl Bundle {
 				format: TextureFormat::R32Uint,
 				usage: TextureUsage::STORAGE
 			});
-		let lock_view = plane.create_view(
+		let lock_view = lock.create_view(
 			&TextureViewDescriptor {
 				label: Some("Flipbook/Dataset/PlaneTextureView"),
 				format: Some(TextureFormat::R32Uint),
@@ -330,6 +368,7 @@ impl Bundle {
 /** An iterator that yields any number of identical bundles. */
 struct BundleFactory<'a> {
 	device: &'a Device,
+	queue:  &'a Queue,
 	layout: &'a BindGroupLayout,
 	prefs:  &'a Preferences,
 
@@ -340,12 +379,14 @@ impl<'a> BundleFactory<'a> {
 	/** Create a new iterator with the given parameters. */
 	pub fn new(
 		device: &'a Device,
+		queue:  &'a Queue,
 		layout: &'a BindGroupLayout,
 		prefs: &'a Preferences) -> Self {
 
 		use crate::dataset;
 		Self {
 			device,
+			queue,
 			layout,
 			prefs,
 			herbivores: dataset::population_bytes(&prefs.simulation.herbivores),
@@ -358,6 +399,7 @@ impl<'a> Iterator for BundleFactory<'a> {
 	fn next(&mut self) -> Option<Self::Item> {
 		Some(Bundle::new_with_populations(
 				self.device,
+				self.queue,
 				self.layout,
 				self.prefs,
 				&self.herbivores,

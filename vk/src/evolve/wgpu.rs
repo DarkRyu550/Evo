@@ -19,6 +19,7 @@ impl Pipeline {
 	/** Creates a new compute pipeline with the given shader. */
 	pub fn new(
 		device:   &Device,
+		params:   &ComputeParameters,
 		flipbook: &Producer,
 		shader:   ShaderModuleSource<'static>) -> Self {
 
@@ -27,7 +28,8 @@ impl Pipeline {
 			&PipelineLayoutDescriptor {
 				label: Some("Evo/Pipeline/Layout"),
 				bind_group_layouts: &[
-					flipbook.layout()
+					flipbook.layout(),
+					&params.layout
 				],
 				push_constant_ranges: &[]
 			});
@@ -70,7 +72,7 @@ impl ComputeParameters {
 			&BufferInitDescriptor {
 				label: Some("Evo/ComputeParameters/Buffer"),
 				contents: &buffer[..],
-				usage: BufferUsage::UNIFORM
+				usage: BufferUsage::UNIFORM | BufferUsage::COPY_DST
 			});
 		let layout = device.create_bind_group_layout(
 			&BindGroupLayoutDescriptor {
@@ -119,8 +121,11 @@ pub struct Evo<A> {
 	base_params: crate::dataset::ComputeParameters,
 	params: ComputeParameters,
 	flipbook: Producer,
-	simulate: Pipeline,
-	shuffle: Pipeline,
+
+	pre_run: Pipeline,
+	field_update: Pipeline,
+	simulate_herbivores: Pipeline,
+	shuffle_herbivores: Pipeline,
 }
 impl<A> Evo<A>
 	where A: Borrow<State> {
@@ -128,12 +133,6 @@ impl<A> Evo<A>
 	/** Creates a new instance of the evolution driver. */
 	pub fn new(state: A, flipbook: Producer, prefs: &Preferences) -> Self {
 		let device = state.borrow().device();
-
-		let simulate = crate::shaders::compute::herbivores::simulate();
-		let simulate = Pipeline::new(device, &flipbook, simulate);
-
-		let shuffle = crate::shaders::compute::herbivores::shuffle();
-		let shuffle = Pipeline::new(device, &flipbook, shuffle);
 
 		let base_params = crate::dataset::ComputeParameters {
 			delta: 0.0,
@@ -160,13 +159,27 @@ impl<A> Evo<A>
 			device,
 			base_params);
 
+		let simulate_herbivores = crate::shaders::compute::herbivores::simulate();
+		let simulate_herbivores = Pipeline::new(device, &params, &flipbook, simulate_herbivores);
+
+		let shuffle_herbivores = crate::shaders::compute::herbivores::shuffle();
+		let shuffle_herbivores = Pipeline::new(device, &params, &flipbook, shuffle_herbivores);
+
+		let pre_run = crate::shaders::compute::pre_run();
+		let pre_run = Pipeline::new(device, &params, &flipbook, pre_run);
+
+		let field_update = crate::shaders::compute::field_update();
+		let field_update = Pipeline::new(device, &params, &flipbook, field_update);
+
 		Self {
 			state,
 			base_params,
 			params,
 			flipbook,
-			simulate,
-			shuffle
+			pre_run,
+			field_update,
+			simulate_herbivores,
+			shuffle_herbivores
 		}
 	}
 
@@ -184,20 +197,47 @@ impl<A> Evo<A>
 				..self.base_params
 			});
 
+		let herbivores = frame.herbivores().await.end;
+
 		let mut encoder = device.create_command_encoder(
 			&CommandEncoderDescriptor {
 				label: Some("Evo/CommandEncoder")
 			});
 		let mut pass = encoder.begin_compute_pass();
 
-		pass.set_pipeline(&self.simulate.pipeline);
+		pass.set_pipeline(&self.pre_run.pipeline);
 		pass.set_bind_group(0, frame.bind_group(), &[]);
+		pass.set_bind_group(1, &self.params.bind, &[]);
 		pass.dispatch(
-			frame.herbivores().await.end,
+			frame.plane_width(),
+			frame.plane_height(),
+			1);
+
+		pass.set_pipeline(&self.simulate_herbivores.pipeline);
+		pass.set_bind_group(0, frame.bind_group(), &[]);
+		pass.set_bind_group(1, &self.params.bind, &[]);
+		pass.dispatch(
+			herbivores,
 			1,
 			1);
-		std::mem::drop(pass);
 
+		pass.set_pipeline(&self.field_update.pipeline);
+		pass.set_bind_group(0, frame.bind_group(), &[]);
+		pass.set_bind_group(1, &self.params.bind, &[]);
+		pass.dispatch(
+			frame.plane_width(),
+			frame.plane_height(),
+			1);
+
+		pass.set_pipeline(&self.shuffle_herbivores.pipeline);
+		pass.set_bind_group(0, frame.bind_group(), &[]);
+		pass.set_bind_group(1, &self.params.bind, &[]);
+		pass.dispatch(
+			herbivores,
+			1,
+			1);
+
+		std::mem::drop(pass);
 		queue.submit(std::iter::once(encoder.finish()));
 	}
 }

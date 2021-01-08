@@ -22,9 +22,9 @@ vec3 GradientIntensityAt(int x, int y, int component, vec2 view) {
     float height = float(bottom - top);
 
     vec2 center = vec2(x, y);
-    float center_val = FieldLoad(x, y)[component];
+    float center_val = clamp(FieldLoad(x, y)[component], 0.0, 1.0);
 
-    vec2 gradient = vec2(0.0);
+    vec2 gradient = vec2(0.000001);
     for(int i = top; i <= bottom; ++i) {
         for(int j = left; j <= right; ++j) {
             vec2 pos = vec2(i - top, j - left);
@@ -34,12 +34,13 @@ vec3 GradientIntensityAt(int x, int y, int component, vec2 view) {
 
             if(dist > radius)
                 continue;
-            float val = FieldLoad(j, i)[component];
+            float val = clamp(FieldLoad(i, j)[component], 0.0, 1.0);
+
             gradient += (val - center_val) * direction;
         }
     }
 
-    return vec3(normalize(gradient).xy, length(gradient));
+    return vec3(normalize(gradient), length(gradient));
 }
 
 void main()
@@ -64,8 +65,10 @@ void main()
 
     vec4  feed  = imageLoad(Evo_Field, ivec2(field_x, field_y));
     float eat = min(feed.w, 1.0 - INDIVIDUAL.energy);
+
     INDIVIDUAL.energy += eat;
     feed.w -= eat;
+
     imageStore(Evo_Field, ivec2(field_x, field_y), feed);
 
     FieldUnlock(field_x, field_y);
@@ -91,12 +94,13 @@ void main()
 
     nn_input[0][2] = red.x;
     nn_input[0][3] = red.y;
-    nn_input[1][0] = green.x;
-    nn_input[1][1] = green.y;
-    nn_input[1][2] = green.z;
-    nn_input[1][3] = blue.x;
-    nn_input[2][0] = blue.y;
-    nn_input[2][1] = blue.z;
+    nn_input[1][0] = red.z;
+    nn_input[1][1] = green.x;
+    nn_input[1][2] = green.y;
+    nn_input[1][3] = green.z;
+    nn_input[2][0] = blue.x;
+    nn_input[2][1] = blue.y;
+    nn_input[2][2] = blue.z;
 
     /* Calculate an output value. */
     vec4[4] nn_output = MatrixMultiplyByVec16(INDIVIDUAL.weights, nn_input);
@@ -109,19 +113,25 @@ void main()
 
     /* Perform the actions we got from the output. */
     vec2 movement = vec2(
-        nn_output[0][1] * cos(nn_output[0][0] * 2 * 3.1415),
-        nn_output[0][1] * sin(nn_output[0][0] * 2 * 3.1415));
-    movement *= Params.delta * Params.herbivore_max_speed;
+        cos(nn_output[0][0] * 2 * 3.1415),
+        sin(nn_output[0][0] * 2 * 3.1415));
 
-    float penalty = Params.delta * nn_output[0][1];
-    penalty = mix(
+    float speed = mix(0.0, Params.herbivore_max_speed, nn_output[0][1]);
+    movement *= Params.delta * speed;
+
+    float penalty = mix(
         Params.herbivore_penalty.x,
         Params.herbivore_penalty.y,
-        penalty);
+        nn_output[0][1]);
+    penalty *= Params.delta;
 
     INDIVIDUAL.position += movement;
     INDIVIDUAL.velocity  = movement;
     INDIVIDUAL.energy   -= penalty;
+
+    /* Coerce the individual back into bounds if necessary. */
+    INDIVIDUAL.position.x = clamp(INDIVIDUAL.position.x, 0.0, Params.field_size.x - 0.01);
+    INDIVIDUAL.position.y = clamp(INDIVIDUAL.position.y, 0.0, Params.field_size.y - 0.01);
 
     /* Update the tile. */
     FieldLock(field_x, field_y);

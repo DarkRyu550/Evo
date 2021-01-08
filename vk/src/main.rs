@@ -16,6 +16,7 @@ use std::sync::Arc;
 use wgpu::Maintain;
 use log::LevelFilter;
 use std::time::Duration;
+use crate::evolve::wgpu::Evo;
 
 mod display;
 mod shaders;
@@ -62,6 +63,10 @@ fn main() {
 		surface,
 		consumer,
 		&prefs);
+	let mut evo = Evo::new(
+		state.clone(),
+		producer,
+		&prefs);
 
 	/* Keep a thread taking care of polling the device. */
 	std::thread::spawn(move || loop {
@@ -103,6 +108,7 @@ fn main() {
 		let delta = now.duration_since(time);
 		time = now;
 
+		runtime.block_on(evo.iterate(delta));
 		runtime.block_on(display.iterate(delta));
 
 		frames += 1;
