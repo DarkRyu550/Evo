@@ -2,29 +2,27 @@ use crate::dataset::Individual;
 use crate::settings::{Preferences, Simulation};
 
 #[derive(Copy, Clone, Debug)]
-struct Cell {
-    red: f32,
-    green: f32,
-    blue: f32,
-    grass: f32
+pub struct Cell {
+    pub red: f32,
+    pub green: f32,
+    pub blue: f32,
+    pub grass: f32
 }
 
 #[derive(Clone, Debug)]
-struct State {
-    herbivores: Vec<Individual>,
-    carnivores: Vec<Individual>,
-    map: Vec<Cell>,
-    params: Simulation,
+pub struct Map {
+    cells: Vec<Cell>,
+    width: u32
 }
 
-impl State {
+impl Map {
     fn new(params: &Simulation) -> Self {
-        let mut map = Vec::with_capacity(
+        let mut cells = Vec::with_capacity(
             (params.horizontal_granularity * params.vertical_granularity) as usize
         );
 
-        for _ in 0..map.capacity() {
-            map.push(Cell {
+        for _ in 0..cells.capacity() {
+            cells.push(Cell {
                 red: 0.0,
                 green: 0.0,
                 blue: 0.0,
@@ -33,9 +31,58 @@ impl State {
         }
 
         Self {
+            cells,
+            width: params.horizontal_granularity
+        }
+    }
+
+    pub fn cells_around(&self, x: u32, y: u32, radius: f32) -> impl Iterator<Item=&Cell> {
+        let rsquared = radius.powf(2f32);
+        self.cells.iter().enumerate().filter(move |(pos, cell)| {
+            let (cx, cy) = self.pos_of(*pos);
+            let dx = cx as i32 - x as i32;
+            let dy = cy as i32 - y as i32;
+            (dx as f32).powf(2.0) + (dy as f32).powf(2.0) < rsquared
+        }).map(|(_, cell)| cell)
+    }
+
+    #[inline(always)]
+    pub fn cell_at(&self, x: u32, y: u32) -> &Cell {
+        &self.cells[self.cell_index(x, y)]
+    }
+
+    #[inline(always)]
+    pub fn cell_at_mut(&mut self, x: u32, y: u32) -> &mut Cell {
+        //make borrow checker happy
+        let i = self.cell_index(x, y);
+        &mut self.cells[i]
+    }
+
+    #[inline(always)]
+    fn cell_index(&self, x: u32, y: u32) -> usize {
+        (y * self.width + x) as usize
+    }
+
+    #[inline(always)]
+    fn pos_of(&self, idx: usize) -> (u32, u32) {
+        (idx as u32 % self.width, idx as u32 / self.width)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct State {
+    pub herbivores: Vec<Individual>,
+    pub carnivores: Vec<Individual>,
+    pub map: Map,
+    params: Simulation,
+}
+
+impl State {
+    fn new(params: &Simulation) -> Self {
+        Self {
             herbivores: crate::dataset::population(&params.herbivores),
             carnivores: crate::dataset::population(&params.predators),
-            map,
+            map: Map::new(params),
             params: params.clone()
         }
     }
@@ -49,11 +96,16 @@ impl State {
                     (pos[0] + vel[0]).clamp(0.0, max_x),
                     (pos[1] + vel[1]).clamp(0.0, max_y)
                 ]
-            };
+            }
         };
+
         let herb_step = {
             move |i: &mut Individual| {
-
+                i.velocity = [
+                    1.0 - i.velocity[0],
+                    1.0 - i.velocity[1]
+                ];
+                i.position = bounds_check(i.position, i.velocity)
             }
         };
         group_step(&self.herbivores, &mut output.herbivores, herb_step);
@@ -67,28 +119,11 @@ impl State {
         group_step(&self.carnivores, &mut output.carnivores, pred_step);
     }
 
-    pub fn herbivores_at(&self, x: f32, y: f32, radius: f32) -> impl Iterator<Item=&Individual> {
+    pub fn herbivores_around(&self, x: f32, y: f32, radius: f32) -> impl Iterator<Item=&Individual> {
         let rsquared = radius.powf(2f32);
         self.herbivores.iter().filter(move |h| {
             (h.position[0] - x).powf(2f32) + (h.position[1] - y).powf(2f32) < rsquared
         })
-    }
-
-    #[inline(always)]
-    pub fn cell_at(&self, x: u32, y: u32) -> &Cell {
-        &self.map[self.cell_index(x, y)]
-    }
-
-    #[inline(always)]
-    pub fn cell_at_mut(&mut self, x: u32, y: u32) -> &mut Cell {
-        //make borrow checker happy
-        let i = self.cell_index(x, y);
-        &mut self.map[i]
-    }
-
-    #[inline(always)]
-    fn cell_index(&self, x: u32, y: u32) -> usize {
-        (y * self.params.horizontal_granularity + x) as usize
     }
 }
 
@@ -116,6 +151,14 @@ impl World {
         };
         orig[0].step(&mut dest[0]);
         self.current_state = 1 - self.current_state;
+    }
+
+    pub fn current_state(&self) -> &State {
+        &self.state[self.current_state]
+    }
+
+    pub fn current_state_mut(&mut self) -> &mut State {
+        &mut self.state[self.current_state]
     }
 }
 
