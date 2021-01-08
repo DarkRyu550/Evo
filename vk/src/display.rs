@@ -1,9 +1,7 @@
 use crate::state::State;
 use std::time::Duration;
 use std::borrow::Borrow;
-use winit::window::Window;
-use std::sync::Arc;
-use wgpu::{Surface, SwapChain, SwapChainDescriptor, TextureUsage, TextureFormat, PresentMode, SwapChainError, CommandEncoder, CommandEncoderDescriptor, RenderPassDescriptor, RenderPassColorAttachmentDescriptor, RenderPipeline, RenderPipelineDescriptor, PipelineLayout, PipelineLayoutDescriptor, BindGroupLayoutDescriptor, BindGroupEntry, ProgrammableStageDescriptor, ShaderModule, BindGroupLayout, BindGroup, Device, RasterizationStateDescriptor, FrontFace, CullMode, PrimitiveTopology, ColorStateDescriptor, BlendDescriptor, BlendOperation, VertexStateDescriptor, VertexBufferDescriptor, IndexFormat, InputStepMode, VertexAttributeDescriptor, VertexFormat, ShaderModuleSource, Buffer, BindGroupLayoutEntry, ShaderStage, BindingType, BufferUsage, BindGroupDescriptor, BindingResource, BufferSize, BufferSlice, Operations, Color, LoadOp};
+use wgpu::{Surface, SwapChain, SwapChainDescriptor, TextureUsage, TextureFormat, PresentMode, SwapChainError, CommandEncoderDescriptor, RenderPassDescriptor, RenderPassColorAttachmentDescriptor, RenderPipeline, RenderPipelineDescriptor, PipelineLayout, PipelineLayoutDescriptor, BindGroupLayoutDescriptor, BindGroupEntry, ProgrammableStageDescriptor, ShaderModule, BindGroupLayout, BindGroup, Device, RasterizationStateDescriptor, FrontFace, CullMode, PrimitiveTopology, ColorStateDescriptor, VertexStateDescriptor, VertexBufferDescriptor, IndexFormat, InputStepMode, VertexAttributeDescriptor, VertexFormat, ShaderModuleSource, Buffer, BindGroupLayoutEntry, ShaderStage, BindingType, BufferUsage, BindGroupDescriptor, BindingResource, BufferSlice, Operations, Color, LoadOp};
 use crate::settings::{Preferences, PresentationMode};
 use crate::flipbook::Consumer;
 use wgpu::util::{DeviceExt, BufferInitDescriptor};
@@ -85,7 +83,7 @@ impl Pipeline {
 									format: VertexFormat::Float3,
 									shader_location: 0
 								},
-								/** Vertex normal attribute. */
+								/* Vertex normal attribute. */
 								VertexAttributeDescriptor {
 									offset: 12,
 									format: VertexFormat::Float3,

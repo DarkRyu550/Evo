@@ -49,23 +49,28 @@ struct Evo_Individual
     vec2 position;
     /** Last movement vector this individual had. */
     vec2 velocity;
+    /** Amount of energy that can be spent by this individual. */
+    float energy;
+
     /** Upper and lower nibbles of the bias vector. */
-    vec4 bias[2];
+    vec4 biases[2];
     /** Components of the weight matrix. */
     mat4 weights[16];
 };
 
 /* Binding Section. */
 layout(set = 0, binding = 0, rgba32f) uniform image2D Evo_Field;
-layout(set = 0, binding = 1, row_major) buffer _Evo_HerbivoreGroup
+layout(set = 0, binding = 1, r32ui) uniform uimage2D Evo_FieldLock;
+
+layout(set = 0, binding = 2, row_major) buffer _Evo_HerbivoreGroup
 {
     Evo_Individual[] Evo_Herbivores;
 };
-layout(set = 0, binding = 1, row_major) buffer _Evo_PredatorGroup
+layout(set = 0, binding = 3, row_major) buffer _Evo_PredatorGroup
 {
     Evo_Individual[] Evo_Predators;
 };
-layout(set = 0, binding = 2) buffer _Evo_BackChannel
+layout(set = 0, binding = 4) buffer _Evo_BackChannel
 {
     uint Evo_LowerHerbivore;
     uint Evo_UpperHerbivore;

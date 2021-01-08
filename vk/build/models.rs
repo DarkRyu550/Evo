@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::fs::File;
-use std::io::{Read, Write, BufReader};
+use std::io::{Write, BufReader};
 use std::ffi::OsStr;
 use obj::Obj;
 
@@ -17,7 +17,7 @@ fn scan<A: AsRef<Path>>(path_ref: A) {
 	let target_path = std::env::var_os("OUT_DIR")
 		.expect("cargo should have set the OUT_DIR variable, but it is missing");
 
-	let mut target_path = PathBuf::from(target_path).join(path);
+	let target_path = PathBuf::from(target_path).join(path);
 	if path.is_dir() {
 		/* Create the corresponding directory in the output path, then rerun
 		 * the scan from within the directory. */

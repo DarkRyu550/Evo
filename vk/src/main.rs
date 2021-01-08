@@ -10,7 +10,6 @@ use crate::settings::Preferences;
 use crate::state::State;
 use crate::display::Display;
 use std::sync::Arc;
-use tokio::runtime::Runtime;
 use wgpu::Maintain;
 use log::LevelFilter;
 use std::time::Duration;
@@ -61,7 +60,7 @@ fn main() {
 		consumer,
 		&prefs);
 
-	/** Keep a thread taking care of polling the device. */
+	/* Keep a thread taking care of polling the device. */
 	std::thread::spawn(move || loop {
 		state.device().poll(Maintain::Wait);
 	});
@@ -78,7 +77,7 @@ fn main() {
 
 	window.set_title("Evo | FPS: 0");
 	event_loop.run(move |event, target, flow| {
-		let _ = (&window);
+		let _ = &window;
 		*flow = ControlFlow::Poll;
 
 		let mut pass = false;

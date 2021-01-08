@@ -6,6 +6,18 @@ layout(set = 1, binding = 0) uniform _SimulationParams
     float herbivore_view_radius;
     /* Radius of vision of individuals in the predator group. */
     float predator_view_radius;
+    /* Maximum speed of a herbivore, in distance per second. */
+    float herbivore_max_speed;
+    /* Maximum speed of a predator, in distance per second. */
+    float predator_max_speed;
+    /* Penalty for existing and walking as a herbivore. The penalty value
+     * will linearly scale from the first to the second point of this vector as
+     * the walking speed increases from zero to one. */
+    vec2 herbivore_penalty;
+    /* Penalty for existing and walking as a herbivore. The penalty value
+     * will linearly scale from the first to the second point of this vector as
+     * the walking speed increases from zero to one. */
+    vec2 predator_penalty;
     /* Size of the simulation area. */
     vec2 field_size;
 } Params;

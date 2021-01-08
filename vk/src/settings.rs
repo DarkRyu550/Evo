@@ -25,6 +25,12 @@ pub struct Group {
 	pub budget: u32,
 	/** Radius of vision in simulation board units. */
 	pub view_radius: f32,
+	/** Amount of energy to consume while standing still. */
+	pub metabolism_min: f32,
+	/** Amount of energy to consume while running at max speed. */
+	pub metabolism_max: f32,
+	/** Maximum speed individuals in this group can reach. */
+	pub max_speed: f32,
 	/** The signature pheromone composition for this group. This will be used as
 	 * the initial value for the chemical composition in the genes of all
 	 * individuals of the group. */
@@ -140,6 +146,9 @@ impl Default for Preferences {
 					individuals: 100,
 					budget: 1024,
 					view_radius: 1.0,
+					metabolism_min: 0.01,
+					metabolism_max: 0.05,
+					max_speed: 10.0,
 					signature: Pheromone {
 						red:   0.0,
 						green: 1.0,
@@ -151,6 +160,9 @@ impl Default for Preferences {
 					individuals: 10,
 					budget: 1024,
 					view_radius: 1.0,
+					metabolism_min: 0.02,
+					metabolism_max: 0.10,
+					max_speed: 10.0,
 					signature: Pheromone {
 						red:   1.0,
 						green: 0.0,

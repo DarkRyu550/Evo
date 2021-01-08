@@ -1,7 +1,6 @@
 use crate::settings::Group;
 use std::ops::Range;
 use std::convert::TryInto;
-use std::borrow::Borrow;
 
 /** Create a new population from the given preference group. */
 pub fn population(group: &Group) -> Vec<Individual> {
@@ -20,8 +19,8 @@ pub fn population(group: &Group) -> Vec<Individual> {
 			]
 		} else {
 			[
-				0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
 				0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+				0.0, 0.0, 0.0, 0.0, 0.0,
 			]
 		};
 	let init5 = ||
@@ -32,7 +31,7 @@ pub fn population(group: &Group) -> Vec<Individual> {
 			]
 		} else {
 			[
-				0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+				0.0, 0.0, 0.0, 0.0, 0.0
 			]
 		};
 
@@ -218,6 +217,18 @@ pub struct ComputeParameters {
 	pub herbivore_view_radius: f32,
 	/** Radius of vision of individuals in the predator group. */
 	pub predator_view_radius: f32,
+	/** Maximum speed of a herbivore, in distance per second. */
+	pub herbivore_max_speed: f32,
+	/** Maximum speed of a predator, in distance per second. */
+	pub predator_max_speed: f32,
+	/** Penalty for existing and walking as a herbivore. The penalty value
+	 * will linearly scale from the first to the second point of this vector as
+	 * the walking speed increases from zero to one. */
+	pub herbivore_penalty: [f32; 2],
+	/** Penalty for existing and walking as a herbivore. The penalty value
+	 * will linearly scale from the first to the second point of this vector as
+	 * the walking speed increases from zero to one. */
+	pub predator_penalty: [f32; 2],
 	/** Size of the simulation field. */
 	pub simulation: [f32; 2]
 }
@@ -235,9 +246,14 @@ impl ComputeParameters {
 		written += write_vec(buf, [
 			self.delta,
 			self.herbivore_view_radius,
-			self.predator_view_radius
+			self.predator_view_radius,
+			self.herbivore_max_speed,
+			self.predator_max_speed
 		]);
 		written += write_pad(buf, 4);
+
+		written += write_vec(buf, self.herbivore_penalty);
+		written += write_vec(buf, self.predator_penalty);
 		written += write_vec(buf, self.simulation);
 
 		written
@@ -352,36 +368,38 @@ impl Individual {
 
 		/* Offset 8N: Write the weight vectors. */
 		written += write_vec(buf, &self.biases[0..4]);
-		written += write_vec(buf, &[self.biases[4], 0, 0, 0]);
+		written += write_vec(buf, &[self.biases[4], 0.0, 0.0, 0.0]);
 
 		/* Offset 16N: Write the A[0-3,0-3] sub-matrices. */
 		for i in 0..3 {
 			for j in 0..3 {
-				let column = |i| match j {
-					0 => [
-						self.weights[i][0],
-						self.weights[i][1],
-						self.weights[i][2],
-						self.weights[i][3],
-					],
-					1 => [
-						self.weights[i][4],
-						self.weights[i][5],
-						self.weights[i][6],
-						self.weights[i][7],
-					],
-					2 => [
-						self.weights[i][8],
-						self.weights[i][9],
-						self.weights[i][10],
-						0,
-					],
-					3 => [0, 0, 0, 0],
-					_ => unreachable!()
+				let column = |i: usize| -> [f32; 4] {
+					match j {
+						0 => [
+							self.weights[i][0],
+							self.weights[i][1],
+							self.weights[i][2],
+							self.weights[i][3],
+						],
+						1 => [
+							self.weights[i][4],
+							self.weights[i][5],
+							self.weights[i][6],
+							self.weights[i][7],
+						],
+						2 => [
+							self.weights[i][8],
+							self.weights[i][9],
+							self.weights[i][10],
+							0.0,
+						],
+						3 => [0.0, 0.0, 0.0, 0.0],
+						_ => unreachable!()
+					}
 				};
-				let row = |i| match i {
-					0..5  => column(i),
-					5..16 => [0, 0, 0, 0],
+				let row = |i: usize| match i {
+					i @ _ if i < 5  => column(i),
+					i @ _ if i < 16 => [0.0, 0.0, 0.0, 0.0],
 					_ => unreachable!()
 				};
 
@@ -391,6 +409,7 @@ impl Individual {
 				written += write_vec(buf, &row(i * 4 + 3));
 			}
 		}
+
 
 		written
 	}
@@ -415,11 +434,11 @@ fn write_u32(buf: &mut Vec<u8>, val: u32) -> usize {
 
 /** Writes the given float vector into the buffer. */
 fn write_vec<A>(buf: &mut Vec<u8>, dat: A) -> usize
-	where A: Borrow<[f32]> {
+	where A: AsRef<[f32]> {
 
-	let data = dat.borrow();
+	let data = dat.as_ref();
 	(0..data.len()).into_iter()
-		.map(|i| *data[i])
+		.map(|i| data[i])
 		.map(|p| f32::to_ne_bytes(p))
 		.map(|bytes| {
 			buf.extend_from_slice(&bytes[..]);
