@@ -6,14 +6,31 @@ layout(set = 1, binding = 0) uniform _SimulationParams
     float growth_rate;
     /* Decomposition rate of the chemicals on the field, in units per second. */
     float decomposition_rate;
+
     /* Radius of vision of individuals in the herbivore group. */
     float herbivore_view_radius;
     /* Radius of vision of individuals in the predator group. */
     float predator_view_radius;
+
     /* Maximum speed of a herbivore, in distance per second. */
     float herbivore_max_speed;
     /* Maximum speed of a predator, in distance per second. */
     float predator_max_speed;
+
+    /* Energy needed to be put in by both herbivore parents to reproduce. */
+    float herbivore_reproduction_cost;
+    /* Energy needed to be put in by both predator parents to reproduce. */
+    float predator_reproduction_cost;
+    /* Minimum energy needed for two herbivores to decide to reproduce. */
+    float herbivore_reproduction_min;
+    /* Minimum energy needed for two predators to decide to reproduce. */
+    float predator_reproduction_min;
+
+    /* Energy newborns of the herbivore group start off with. */
+    float herbivore_offspring_energy;
+    /* Energy newborns of the predator group start off with. */
+    float predator_offspring_energy;
+
     /* Penalty for existing and walking as a herbivore. The penalty value
      * will linearly scale from the first to the second point of this vector as
      * the walking speed increases from zero to one. */

@@ -33,6 +33,12 @@ pub struct Group {
 	pub metabolism_max: f32,
 	/** Maximum speed individuals in this group can reach. */
 	pub max_speed: f32,
+	/** Energy needed to be put in by both parents to reproduce. */
+	pub reproduction_cost: f32,
+	/** Minimum energy needed for two parents to decide to reproduce. */
+	pub reproduction_min: f32,
+	/** Energy newborns of this group group start off with. */
+	pub offspring_energy: f32,
 	/** The signature pheromone composition for this group. This will be used as
 	 * the initial value for the chemical composition in the genes of all
 	 * individuals of the group. */
@@ -168,6 +174,9 @@ impl Default for Preferences {
 					metabolism_min: 0.01,
 					metabolism_max: 0.05,
 					max_speed: 10.0,
+					reproduction_cost: 0.1,
+					reproduction_min: 0.5,
+					offspring_energy: 1.0,
 					signature: Pheromone {
 						red:   0.0,
 						green: 1.0,
@@ -183,6 +192,9 @@ impl Default for Preferences {
 					metabolism_min: 0.02,
 					metabolism_max: 0.10,
 					max_speed: 10.0,
+					reproduction_cost: 0.4,
+					reproduction_min: 0.8,
+					offspring_energy: 1.0,
 					signature: Pheromone {
 						red:   1.0,
 						green: 0.0,

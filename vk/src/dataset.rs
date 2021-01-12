@@ -248,6 +248,18 @@ pub struct ComputeParameters {
 	pub herbivore_max_speed: f32,
 	/** Maximum speed of a predator, in distance per second. */
 	pub predator_max_speed: f32,
+	/** Energy needed to be put in by both herbivore parents to reproduce. */
+	pub herbivore_reproduction_cost: f32,
+	/** Energy needed to be put in by both predator parents to reproduce. */
+	pub predator_reproduction_cost: f32,
+	/** Minimum energy needed for two herbivores to decide to reproduce. */
+	pub herbivore_reproduction_min: f32,
+	/** Minimum energy needed for two predators to decide to reproduce. */
+	pub predator_reproduction_min: f32,
+	/** Energy newborns of the herbivore group start off with. */
+	pub herbivore_offspring_energy: f32,
+	/** Energy newborns of the predator group start off with. */
+	pub predator_offspring_energy: f32,
 	/** Penalty for existing and walking as a herbivore. The penalty value
 	 * will linearly scale from the first to the second point of this vector as
 	 * the walking speed increases from zero to one. */
@@ -277,7 +289,13 @@ impl ComputeParameters {
 			self.herbivore_view_radius,
 			self.predator_view_radius,
 			self.herbivore_max_speed,
-			self.predator_max_speed
+			self.predator_max_speed,
+			self.herbivore_reproduction_cost,
+			self.predator_reproduction_cost,
+			self.herbivore_reproduction_min,
+			self.predator_reproduction_min,
+			self.herbivore_offspring_energy,
+			self.predator_offspring_energy
 		]);
 		written += write_pad(buf, 4);
 

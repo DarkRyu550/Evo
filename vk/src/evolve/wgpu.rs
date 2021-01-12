@@ -144,6 +144,12 @@ impl<A> Evo<A>
 			predator_view_radius: prefs.simulation.predators.view_radius,
 			herbivore_max_speed: prefs.simulation.herbivores.max_speed,
 			predator_max_speed: prefs.simulation.predators.max_speed,
+			herbivore_reproduction_cost: prefs.simulation.herbivores.reproduction_cost,
+			predator_reproduction_cost: prefs.simulation.predators.reproduction_cost,
+			herbivore_reproduction_min: prefs.simulation.herbivores.reproduction_min,
+			predator_reproduction_min: prefs.simulation.predators.reproduction_min,
+			herbivore_offspring_energy: prefs.simulation.herbivores.offspring_energy,
+			predator_offspring_energy: prefs.simulation.predators.offspring_energy,
 			herbivore_penalty: [
 				prefs.simulation.herbivores.metabolism_min,
 				prefs.simulation.herbivores.metabolism_max,

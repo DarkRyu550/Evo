@@ -11,30 +11,36 @@ PlaneHeight = 200.0
 HorizontalGranularity = 200
 VerticalGranularity   = 200
 
-GrowthRate = 0.1
+GrowthRate = 0.01
 DecompositionRate = 0.1
 
 TimeDilation = 0.5
 MaxDiscreteTime = 0.02
 
 [Simulation.Herbivores]
-Budget        = 4096
-Individuals   = 1000
-ViewRadius    = 20.0
-MetabolismMin = 0.005
-MetabolismMax = 0.050
-MaxSpeed      = 10.0
-Signature     = { Red = 0.0, Green = 0.5, Blue = 1.0 }
-InitToRandom  = true
-SpawnRange    = [0.0, 200.0, 0.0, 200.0]
+Budget           = 4096
+Individuals      = 2000
+ViewRadius       = 20.0
+MetabolismMin    = 0.005
+MetabolismMax    = 0.050
+MaxSpeed         = 10.0
+Signature        = { Red = 0.0, Green = 0.5, Blue = 1.0 }
+InitToRandom     = true
+SpawnRange       = [0.0, 200.0, 0.0, 200.0]
+ReproductionCost = 0.100
+ReproductionMin  = 0.500
+OffspringEnergy  = 1.0
 
 [Simulation.Predators]
-Budget        = 4096
-Individuals   = 100
-ViewRadius    = 20.0
-MetabolismMin = 0.050
-MetabolismMax = 0.100
-MaxSpeed      = 10.0
-Signature     = { Red = 0.0, Green = 0.5, Blue = 1.0 }
-InitToRandom  = true
-SpawnRange    = [0.0, 200.0, 0.0, 200.0]
+Budget           = 4096
+Individuals      = 100
+ViewRadius       = 20.0
+MetabolismMin    = 0.050
+MetabolismMax    = 0.100
+MaxSpeed         = 10.0
+Signature        = { Red = 0.0, Green = 0.5, Blue = 1.0 }
+InitToRandom     = true
+SpawnRange       = [0.0, 200.0, 0.0, 200.0]
+ReproductionCost = 0.400
+ReproductionMin  = 0.800
+OffspringEnergy  = 1.0

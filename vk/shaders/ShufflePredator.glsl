@@ -16,7 +16,7 @@ void main() {
     if(gl_GlobalInvocationID.x >= Evo_UpperPredator)
         return;
 
-    if(INDIVIDUAL.energy >= 0.60)
+    if(INDIVIDUAL.energy >= Params.predator_reproduction_min)
     {
         /* Reproduce together with the best individual. */
         int a = int(Evo_LowerPredator);
@@ -29,21 +29,29 @@ void main() {
         #define MATE Evo_Predators[a]
         #define OFFSPRING Evo_Predators[Evo_UpperPredator - 1]
 
-        MATE.energy -= 0.10;
-        INDIVIDUAL.energy -= 0.10;
+        MATE.energy       -= Params.predator_reproduction_cost;
+        INDIVIDUAL.energy -= Params.predator_reproduction_cost;
 
         Evo_UpperPredator++;
 
-        OFFSPRING.position = mix(MATE.position, INDIVIDUAL.position, 0.5);
-        OFFSPRING.velocity = mix(MATE.velocity, INDIVIDUAL.velocity, 0.5);
-        OFFSPRING.energy   = 0.5;
+        OFFSPRING.position = mix(MATE.position, INDIVIDUAL.position, OFFSPRING.biases[0][0]);
+        OFFSPRING.velocity = mix(MATE.velocity, INDIVIDUAL.velocity, OFFSPRING.biases[0][1]);
+        OFFSPRING.energy   = Params.predator_offspring_energy;
 
-        OFFSPRING.biases[0] = mix(MATE.biases[0], INDIVIDUAL.biases[0], 0.5);
-        OFFSPRING.biases[1] = mix(MATE.biases[1], INDIVIDUAL.biases[1], 0.5);
+        for(int i = 0; i < 2; ++i)
+            for(int j = 0; j < 4; ++j)
+                OFFSPRING.biases[i][j] = mix(
+                    MATE.biases[i][j],
+                    INDIVIDUAL.biases[i][j],
+                    OFFSPRING.biases[i][j]);
 
         for(int i = 0; i < 16; ++i)
             for(int j = 0; j < 4; ++j)
-                OFFSPRING.weights[i][j] = mix(MATE.weights[i][j], INDIVIDUAL.weights[i][j], 0.5);
+                for(int k = 0; k < 4; ++k)
+                    OFFSPRING.weights[i][j][k] = mix(
+                        MATE.weights[i][j][k],
+                        INDIVIDUAL.weights[i][j][k],
+                        OFFSPRING.weights[i][j][k]);
     }
     else if(INDIVIDUAL.energy < 0.0)
     {
