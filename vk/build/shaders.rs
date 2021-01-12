@@ -231,6 +231,7 @@ pub fn build() {
 		TargetEnv::Vulkan,
 		EnvVersion::Vulkan1_0 as u32);
 	options.set_include_callback(fail_include);
+	options.set_generate_debug_info();
 
 	scan(shader_dir, &mut compiler, &options);
 	println!("cargo:rerun-if-changed={}", SHADER_DIR);
