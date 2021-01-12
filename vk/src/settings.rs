@@ -45,6 +45,13 @@ pub struct Group {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Simulation {
+	/** Time dilation factor of the simulation. */
+	pub time_dilation: f32,
+	/** Minimum length a discrete time step is allowed to cover. Any simulation
+	 * steps that tries to cover more time than this will be clamped to this
+	 * value. */
+	pub max_discrete_time: f32,
+
 	/** Width of the simulation plane. */
 	pub plane_width: f32,
 	/** Height of the simulation plane. */
@@ -145,6 +152,8 @@ impl Default for Preferences {
 							   Backend::DX12, Backend::BrowserWebGpu]
 			},
 			simulation: Simulation {
+				time_dilation: 1.0,
+				max_discrete_time: 0.5,
 				plane_width: 100.0,
 				plane_height: 100.0,
 				horizontal_granularity: 100,

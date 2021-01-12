@@ -1,4 +1,4 @@
-use wgpu::{BindGroupLayout, Buffer, Texture, BufferUsage, BindGroup, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ShaderStage, BindingType, TextureViewDimension, TextureFormat, Device, TextureDescriptor, Extent3d, TextureDimension, TextureUsage, BindGroupDescriptor, BindGroupEntry, BindingResource, TextureViewDescriptor, TextureAspect, MapMode, Queue, TextureCopyView, Origin3d, TextureDataLayout};
+use wgpu::{BindGroupLayout, Buffer, Texture, BufferUsage, BindGroup, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ShaderStage, BindingType, TextureViewDimension, TextureFormat, Device, TextureDescriptor, Extent3d, TextureDimension, TextureUsage, BindGroupDescriptor, BindGroupEntry, BindingResource, TextureViewDescriptor, TextureAspect, MapMode, Queue, TextureCopyView, Origin3d, TextureDataLayout, CommandBuffer, CommandEncoderDescriptor};
 use crate::state::State;
 use std::borrow::Borrow;
 use crate::settings::Preferences;
@@ -28,10 +28,9 @@ use std::ops::{Range, RangeBounds, Bound};
  * previously established property that snapshots will always contain the most
  * recently produced copy of the dataset.
  */
-pub fn channel<A>(state: A, prefs: &Preferences) -> (Producer, Consumer)
-	where A: Borrow<State> {
+pub fn channel(state: Arc<State>, prefs: &Preferences) -> (Producer, Consumer) {
 
-	let device = state.borrow().device();
+	let device = state.device();
 	let layout = device.create_bind_group_layout(
 		&BindGroupLayoutDescriptor {
 			label: Some("Flipbook/Dataset/BindGroupLayout"),
@@ -97,7 +96,7 @@ pub fn channel<A>(state: A, prefs: &Preferences) -> (Producer, Consumer)
 	let bundles = {
 		let mut iter = BundleFactory::new(
 			device,
-			state.borrow().queue(),
+			state.queue(),
 			&layout,
 			prefs);
 		[
@@ -118,6 +117,7 @@ pub fn channel<A>(state: A, prefs: &Preferences) -> (Producer, Consumer)
 	});
 
 	let flipbook = Arc::new(Flipbook {
+		state,
 		bundles,
 		index,
 		layout
@@ -140,12 +140,15 @@ struct Index {
 /** Flipbook storage bundle. */
 #[derive(Debug)]
 struct Bundle {
-	/** Handle to the underlying herbivore storage buffer. Along with a count. */
-	herbivores: (Buffer, u32),
-	/** Handle to the underlying predator storage buffer. Along with a count. */
-	predators: (Buffer, u32),
-	/** Handle to the host back-channeling buffer. */
-	back_channel: Buffer,
+	/** Handle to the underlying herbivore storage buffer. Along with the number
+	 * of individuals allocated and the size of the data, in bytes. */
+	herbivores: (Buffer, u32, u64),
+	/** Handle to the underlying predator storage buffer. Along with the number
+	 * of individuals allocated and the size of the data, in bytes. */
+	predators: (Buffer, u32, u64),
+	/** Handle to the host back-channeling buffer. Along with the size of the
+	 * data, in bytes. */
+	back_channel: (Buffer, u64),
 	/** Handle to the simulation plane storage. */
 	plane: (Texture, u32, u32),
 	/** Handle to the simulation plane lock storage. */
@@ -167,18 +170,23 @@ impl Bundle {
 			  B: AsRef<[u8]> {
 
 
+		let herbivores_len = herbivores.as_ref().len();
+		let predators_len  = herbivores.as_ref().len();
+
 		let herbivores = device.create_buffer_init(
 			&BufferInitDescriptor {
 				label: Some("Flipbook/Dataset/HerbivoreBuffer"),
 				contents: &herbivores.as_ref()[..],
-				usage: BufferUsage::STORAGE
+				usage: BufferUsage::STORAGE | BufferUsage::COPY_SRC
+					| BufferUsage::COPY_DST
 			});
 
 		let predators = device.create_buffer_init(
 			&BufferInitDescriptor {
 				label: Some("Flipbook/Dataset/PredatorBuffer"),
 				contents: &predators.as_ref()[..],
-				usage: BufferUsage::STORAGE
+				usage: BufferUsage::STORAGE | BufferUsage::COPY_SRC
+					| BufferUsage::COPY_DST
 			});
 
 		let mut back_channel_buf = Vec::with_capacity(16);
@@ -186,13 +194,15 @@ impl Bundle {
 			herbivores: 0..prefs.simulation.herbivores.individuals,
 			predators: 0..prefs.simulation.predators.individuals
 		};
-		back_channel.bytes(&mut back_channel_buf);
+		let back_channel_len = back_channel.bytes(&mut back_channel_buf);
 
 		let back_channel = device.create_buffer_init(
 			&BufferInitDescriptor {
 				label: Some("Flipbook/Dataset/BackChannelBuffer"),
 				contents: &back_channel_buf[..],
-				usage: BufferUsage::STORAGE | BufferUsage::MAP_READ | BufferUsage::MAP_WRITE
+				usage: BufferUsage::STORAGE | BufferUsage::MAP_READ
+					| BufferUsage::MAP_WRITE | BufferUsage::COPY_DST
+					| BufferUsage::COPY_SRC
 			});
 
 		let plane = device.create_texture(
@@ -207,7 +217,8 @@ impl Bundle {
 				sample_count: 1,
 				dimension: TextureDimension::D2,
 				format: TextureFormat::Rgba32Float,
-				usage: TextureUsage::STORAGE | TextureUsage::COPY_DST
+				usage: TextureUsage::STORAGE | TextureUsage::COPY_SRC
+					| TextureUsage::COPY_DST
 			});
 		let plane_view = plane.create_view(
 			&TextureViewDescriptor {
@@ -265,7 +276,8 @@ impl Bundle {
 				sample_count: 1,
 				dimension: TextureDimension::D2,
 				format: TextureFormat::R32Uint,
-				usage: TextureUsage::STORAGE
+				usage: TextureUsage::STORAGE | TextureUsage::COPY_DST
+					| TextureUsage::COPY_SRC
 			});
 		let lock_view = lock.create_view(
 			&TextureViewDescriptor {
@@ -308,9 +320,20 @@ impl Bundle {
 			});
 
 		Self {
-			herbivores: (herbivores, prefs.simulation.herbivores.budget),
-			predators:  (predators,  prefs.simulation.predators.budget),
-			back_channel,
+			herbivores: (
+				herbivores,
+				prefs.simulation.herbivores.budget,
+				herbivores_len as u64
+			),
+			predators: (
+				predators,
+				prefs.simulation.predators.budget,
+				predators_len as u64
+			),
+			back_channel: (
+				back_channel,
+				back_channel_len as u64
+			),
 			plane: (
 				plane,
 				prefs.simulation.horizontal_granularity,
@@ -328,7 +351,7 @@ impl Bundle {
 	/** Read from the back channel buffer and copies the results. */
 	pub async fn read_back_channel(&self) -> BackChannel {
 		let channel = {
-			let slice = self.back_channel.slice(..);
+			let slice = self.back_channel.0.slice(..);
 			slice.map_async(MapMode::Read)
 				.await
 				.expect("could not map back channel for reading");
@@ -337,14 +360,14 @@ impl Bundle {
 			BackChannel::from_bytes(&*mapped)
 		};
 
-		self.back_channel.unmap();
+		self.back_channel.0.unmap();
 		channel
 	}
 
 	/** Write to the given data to the back channel buffer. */
 	pub async fn write_back_channel(&self, data: BackChannel) -> usize {
 		let written = {
-			let slice = self.back_channel.slice(..);
+			let slice = self.back_channel.0.slice(..);
 
 			slice.map_async(MapMode::Write)
 				.await
@@ -360,7 +383,7 @@ impl Bundle {
 			buf.len()
 		};
 
-		self.back_channel.unmap();
+		self.back_channel.0.unmap();
 		written
 	}
 }
@@ -408,17 +431,161 @@ impl<'a> Iterator for BundleFactory<'a> {
 }
 
 /** Shared state for the flipbook style channel. */
-#[derive(Debug)]
 struct Flipbook {
+	/** Underlying state. */
+	state: Arc<State>,
 	/** Data bundles, in no specific order. */
 	bundles: [Bundle; 3],
 	/** Index setting specific roles to bundles in the storage array. */
 	index: Mutex<Index>,
 	/** Layout for the binding groups of the bundles. */
-	layout: BindGroupLayout
+	layout: BindGroupLayout,
+}
+impl Flipbook {
+	/** Copies the data from the bundle at the first index to the bundle at the
+	 * second index.
+	 * # Panic
+	 * This function panics if either of the given indices don't exist.
+	 */
+	pub fn bundle_copy(&self, source: u8, target: u8) {
+		if source >= 3 { panic!("illegal copy bundle params: source ({}) > 3", source) }
+		if target >= 3 { panic!("illegal copy bundle params: target ({}) > 3", target) }
+
+		let source = usize::from(source);
+		let target = usize::from(target);
+
+		let device = self.state.device();
+
+		let label = format!("Flipbook/Transfer[{} -> {}]", source, target);
+		let mut encoder = device.create_command_encoder(
+			&CommandEncoderDescriptor {
+				label: Some(&label)
+			});
+
+		let bundles = &self.bundles;
+		let i = source;
+		let j = target;
+
+		encoder.copy_buffer_to_buffer(
+			&bundles[i].herbivores.0,
+			0,
+			&bundles[j].herbivores.0,
+			0,
+			if bundles[i].herbivores.2 != bundles[j].herbivores.2 {
+				panic!("both herbivore bundles must have been the same \
+						size, but, instead, we got: bundles[{}].herbivores.2 \
+						({}) != bundles[{}].herbivores.2 ({})",
+					i, bundles[i].herbivores.2,
+					j, bundles[j].herbivores.2)
+			} else {
+				bundles[i].herbivores.2
+			});
+
+		encoder.copy_buffer_to_buffer(
+			&bundles[i].predators.0,
+			0,
+			&bundles[j].predators.0,
+			0,
+			if bundles[i].predators.2 != bundles[j].predators.2 {
+				panic!("both predator bundles must have been the same \
+						size, but, instead, we got: bundles[{}].predators.2 \
+						({}) != bundles[{}].predators.2 ({})",
+					i, bundles[i].predators.2,
+					j, bundles[j].predators.2)
+			} else {
+				bundles[i].predators.2
+			});
+
+		encoder.copy_buffer_to_buffer(
+			&bundles[i].back_channel.0,
+			0,
+			&bundles[j].back_channel.0,
+			0,
+			if bundles[i].back_channel.1 != bundles[j].back_channel.1 {
+				panic!("both back channel bundles must have been the same \
+						size, but, instead, we got: bundles[{}].back_channel.1 \
+						({}) != bundles[{}].back_channel.1 ({})",
+					i, bundles[i].back_channel.1,
+					j, bundles[j].back_channel.1)
+			} else {
+				bundles[i].back_channel.1
+			});
+
+		encoder.copy_texture_to_texture(
+			TextureCopyView {
+				texture: &bundles[i].plane.0,
+				mip_level: 0,
+				origin: Origin3d::ZERO
+			},
+			TextureCopyView {
+				texture: &bundles[j].plane.0,
+				mip_level: 0,
+				origin: Origin3d::ZERO
+			},
+			Extent3d {
+				width: if bundles[i].plane.1 != bundles[j].plane.1 {
+					panic!("both simulation plane bundles must have been \
+							the same width, but, instead, we got: \
+							bundles[{}].plane.1 ({}) != \
+							bundles[{}].plane.1 ({})",
+						i, bundles[i].plane.1,
+						j, bundles[j].plane.1)
+				} else {
+					bundles[i].plane.1
+				},
+				height: if bundles[i].plane.2 != bundles[j].plane.2 {
+					panic!("both simulation plane bundles must have been \
+							the same height, but, instead, we got: \
+							bundles[{}].plane.2 ({}) != \
+							bundles[{}].plane.2 ({})",
+						i, bundles[i].plane.2,
+						j, bundles[j].plane.2)
+				} else {
+					bundles[i].plane.2
+				},
+				depth: 1
+			});
+
+		encoder.copy_texture_to_texture(
+			TextureCopyView {
+				texture: &bundles[i].lock.0,
+				mip_level: 0,
+				origin: Origin3d::ZERO
+			},
+			TextureCopyView {
+				texture: &bundles[j].lock.0,
+				mip_level: 0,
+				origin: Origin3d::ZERO
+			},
+			Extent3d {
+				width: if bundles[i].lock.1 != bundles[j].lock.1 {
+					panic!("both lock plane bundles must have been \
+							the same width, but, instead, we got: \
+							bundles[{}].lock.1 ({}) != \
+							bundles[{}].lock.1 ({})",
+						i, bundles[i].lock.1,
+						j, bundles[j].lock.1)
+				} else {
+					bundles[i].lock.1
+				},
+				height: if bundles[i].lock.2 != bundles[j].lock.2 {
+					panic!("both lock plane bundles must have been \
+							the same height, but, instead, we got: \
+							bundles[{}].lock.2 ({}) != \
+							bundles[{}].lock.2 ({})",
+						i, bundles[i].lock.2,
+						j, bundles[j].lock.2)
+				} else {
+					bundles[i].lock.2
+				},
+				depth: 1
+			});
+
+		self.state.queue()
+			.submit(std::iter::once(encoder.finish()))
+	}
 }
 
-#[derive(Debug)]
 pub struct Consumer {
 	book: Arc<Flipbook>,
 }
@@ -427,10 +594,11 @@ impl Consumer {
 		let (index, timestamp) = {
 			let mut index = self.book.index.lock().unwrap();
 			let now = Instant::now();
+
 			if now.duration_since(index.storage.1) < now.duration_since(index.consumer.1) {
-				let tmp = index.storage;
-				index.storage  = index.consumer;
-				index.consumer = tmp;
+				self.book.bundle_copy(
+					index.storage.0,
+					index.consumer.0);
 			}
 
 			index.consumer
@@ -478,7 +646,6 @@ impl Consumer {
 	}
 }
 
-#[derive(Debug)]
 pub struct Snapshot<'a> {
 	/* Must be a mutable reference (See soundness note for the Consumer). */
 	root: &'a mut Consumer,
@@ -527,7 +694,6 @@ impl<'a> Snapshot<'a> {
 }
 
 
-#[derive(Debug)]
 pub struct Producer {
 	book: Arc<Flipbook>,
 }
@@ -711,9 +877,10 @@ impl<'a> Drop for Frame<'a> {
 
 		let mut index = book.index.lock().unwrap();
 		index.producer.1 = now;
+		index.storage.1 = now;
 
-		let tmp = index.producer;
-		index.producer = index.storage;
-		index.storage  = tmp;
+		self.root.book.bundle_copy(
+			index.producer.0,
+			index.storage.0);
 	}
 }

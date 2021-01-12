@@ -30,7 +30,7 @@ mod evolve;
 fn main() {
 	env_logger::builder()
 		/* Disgusting. */
-		/*.filter(Some("gfx_backend_vulkan"), LevelFilter::Off)*/
+		.filter(Some("gfx_backend_vulkan"), LevelFilter::Off)
 		.init();
 
 	let prefs = Preferences::try_load()
@@ -78,6 +78,45 @@ fn main() {
 		.build()
 		.unwrap();
 
+	/* Spawn the evolution loop. It still should run in real time, except that
+	 * now it may be able to run more or steps than it would be able to run if
+	 * it were tied to the frame rate. */
+	runtime.spawn(async move {
+		let mut time = Instant::now();
+		loop {
+			let now = Instant::now();
+			let delta = now.duration_since(time);
+			time = now;
+
+			/* Dilate and clamp. */
+			let delta_dil = delta.as_nanos() as f64;
+			let delta_dil = delta_dil * f64::from(prefs.simulation.time_dilation);
+			let delta_dil = delta_dil.round() as u128;
+
+			let max = Duration::from_secs_f64(
+				f64::from(prefs.simulation.max_discrete_time));
+
+			let delta = if delta_dil > max.as_nanos() {
+				warn!("time step of the simulation had to be clamped from {:?} \
+					to the maximum specified value of {:?}",
+					delta,
+					max);
+				warn!("considering lowering the dilation factor or increasing \
+					the time window tolerance of the simulation");
+
+				max
+			} else {
+				Duration::new(
+					(delta_dil / 1_000_000_000) as u64,
+					(delta_dil % 1_000_000_000) as u32)
+			};
+
+
+			/* Simulate. */
+			evo.iterate(delta).await;
+		}
+	});
+
 	let mut time = Instant::now();
 
 	let mut sec = Instant::now();
@@ -108,7 +147,6 @@ fn main() {
 		let delta = now.duration_since(time);
 		time = now;
 
-		runtime.block_on(evo.iterate(delta));
 		runtime.block_on(display.iterate(delta));
 
 		frames += 1;
