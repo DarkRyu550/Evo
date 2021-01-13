@@ -416,6 +416,10 @@ fn group_step_index<F: FnMut(&mut Vec<Individual>, usize) -> Option<Individual>>
     dest.clear();
     let initial_len = src.len();
     for i in 0..initial_len {
+        //remove individuals killed by predators
+        if src[i].energy < 0.0 {
+            continue;
+        }
         if let Some(child) = f(src, i) {
             dest.push(child);
         }
