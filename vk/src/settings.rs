@@ -51,6 +51,8 @@ pub struct Group {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Simulation {
+	/** Whether the cpu or gpu should be used. */
+	pub mode: SimulationMode,
 	/** Time dilation factor of the simulation. */
 	pub time_dilation: f32,
 	/** Minimum length a discrete time step is allowed to cover. Any simulation
@@ -113,6 +115,12 @@ pub enum Backend {
 	BrowserWebGpu
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+pub enum SimulationMode {
+	Cpu,
+	Gpu
+}
+
 /** Settings for the window and display of the simulation. */
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -158,6 +166,7 @@ impl Default for Preferences {
 							   Backend::DX12, Backend::BrowserWebGpu]
 			},
 			simulation: Simulation {
+				mode: SimulationMode::Gpu,
 				time_dilation: 1.0,
 				max_discrete_time: 0.5,
 				plane_width: 100.0,

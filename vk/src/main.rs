@@ -9,7 +9,7 @@ use winit::event_loop::{EventLoop, ControlFlow};
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
 use std::time::Instant;
-use crate::settings::Preferences;
+use crate::settings::{Preferences, SimulationMode};
 use crate::state::State;
 use crate::display::Display;
 use std::sync::Arc;
@@ -17,6 +17,7 @@ use wgpu::Maintain;
 use log::LevelFilter;
 use std::time::Duration;
 use crate::evolve::wgpu::Evo;
+use crate::evolve::cpu::World;
 
 mod display;
 mod shaders;
@@ -63,20 +64,28 @@ fn main() {
 		surface,
 		consumer,
 		&prefs);
-	let mut evo = Evo::new(
-		state.clone(),
-		producer,
-		&prefs);
+
+	let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread()
+		.enable_all()
+		.build()
+		.unwrap());
+
+	let mut process: Box<dyn FnMut(Duration) + Send> = if prefs.simulation.mode == SimulationMode::Gpu {
+		let runtime = runtime.clone();
+		let mut evo = Evo::new(
+			state.clone(),
+			producer,
+			&prefs);
+		Box::new(move |d: Duration| { runtime.block_on(evo.iterate(d)); })
+	} else {
+		let mut world = World::new(&prefs.simulation);
+		Box::new(move |d: Duration| -> () { world.step(d); })
+	};
 
 	/* Keep a thread taking care of polling the device. */
 	std::thread::spawn(move || loop {
 		state.device().poll(Maintain::Wait);
 	});
-
-	let runtime = tokio::runtime::Builder::new_multi_thread()
-		.enable_all()
-		.build()
-		.unwrap();
 
 	/* Spawn the evolution loop. It still should run in real time, except that
 	 * now it may be able to run more or steps than it would be able to run if
@@ -123,7 +132,7 @@ fn main() {
 
 
 			/* Simulate. */
-			evo.iterate(delta).await;
+			process(delta);
 		}
 	});
 

@@ -5,6 +5,8 @@ SwapchainMode = "Mailbox"
 Backends = ["Vulkan", "Metal", "DX12", "BrowserWebGpu"]
 
 [Simulation]
+Mode = "Gpu"
+
 PlaneWidth  = 200.0
 PlaneHeight = 200.0
 
