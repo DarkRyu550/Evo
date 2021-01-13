@@ -137,13 +137,14 @@ impl State {
         };
         let center = self.individual_pos(individual);
         let center_val = selector(self.map.cell_at(center.0, center.1));
+        let center = (center.0 as f32, center.1 as f32);
 
-        let mut gradient = (0.0f32, 0.0);
+        let mut gradient = (f32::MIN_POSITIVE, f32::MIN_POSITIVE);
 
         for i in top..=bottom {
             for j in left..=right {
                 let (direction, dist) = {
-                    let (x, y) = ((i - center.0) as f32, (j - center.1) as f32);
+                    let (x, y) = (i as f32 - center.0, j as f32 - center.1);
                     let mag = (x.powf(2.0) + y.powf(2.0)).sqrt();
                     ((x / mag, y / mag), mag)
                 };
@@ -160,7 +161,7 @@ impl State {
             }
         }
         {
-            let mag = (gradient.0.powf(2.0) + gradient.1.powf(2.0)).sqrt();
+            let mag = (gradient.0.powf(2.0) + gradient.1.powf(2.0)).sqrt().max(f32::MIN_POSITIVE);
             (gradient.0 / mag, gradient.1 / mag, mag)
         }
     }
@@ -198,12 +199,19 @@ impl State {
             }
         };
 
-        let common_update = |map: &mut Map, i: &mut Individual, (x, y)| {
+        let common_update = |group: &Group, map: &mut Map, i: &mut Individual, (x, y)| {
             /* math go brrrr */
             let nn_result = {
                 let weights = ndarray::arr2(&i.weights);
                 let inputs = ndarray::arr1({
-                    let [grad_r, grad_g, grad_b, grad_a] = self.gradients(&self.params.herbivores, i);
+                    let gradients = self.gradients(group, i);
+                    #[cfg(debug_assertions)]
+                        {
+                            for f in gradients.iter() {
+                                debug_assert!(!(f.0.is_nan() || f.1.is_nan() || f.2.is_nan()), "Found NaN in gradient: {:?}/{:?}", f, gradients);
+                            }
+                        }
+                    let [grad_r, grad_g, grad_b, grad_a] = gradients;
                     &[
                         i.velocity[0],
                         i.velocity[1],
@@ -224,11 +232,18 @@ impl State {
                 result.into_shape((5, )).expect("Unable to reshape result to (5,)")
             };
 
+            #[cfg(debug_assertions)]
+                {
+                    for i in 0..5 {
+                        debug_assert!(!nn_result[i].is_nan(), "nn_result[{}] is NaN", i);
+                    }
+                }
+
             /* movement and energy */
             {
                 let theta = nn_result[0];
                 let magnitude = nn_result[1];
-                let mul = self.params.herbivores.max_speed * delta;
+                let mul = group.max_speed * delta;
                 let movement = [
                     magnitude * f32::cos(theta * 2.0 * std::f32::consts::PI) * mul,
                     magnitude * f32::sin(theta * 2.0 * std::f32::consts::PI) * mul
@@ -239,8 +254,11 @@ impl State {
 
                 let penalty = {
                     let v = delta * magnitude;
-                    self.params.herbivores.metabolism_min * (1.0 - v) + self.params.herbivores.metabolism_max * v
+                    group.metabolism_min * (1.0 - v) + group.metabolism_max * v
                 };
+
+                debug_assert!(penalty > 0.0, "Invalid penalty ({:?}, delta = {:?}, magnitude = {:?})",
+                              penalty, delta, magnitude);
 
                 i.energy -= penalty;
             }
@@ -265,7 +283,7 @@ impl State {
                     i.energy += eat;
                     cell.grass -= eat;
                 }
-                common_update(map, i, (x, y));
+                common_update(&self.params.herbivores, map, i, (x, y));
             }
         };
         group_step(&self.herbivores, &mut output.herbivores, herb_step);
@@ -294,7 +312,7 @@ impl State {
                         }
                     }
                 }
-                common_update(map, i, (x, y));
+                common_update(&self.params.predators, map, i, (x, y));
             }
         };
         group_step(&self.carnivores, &mut output.carnivores, pred_step);
@@ -310,7 +328,7 @@ impl State {
     fn shuffle(&mut self, output: &mut State) {
         let shuffle = |settings: &Group, group: &mut Vec<Individual>, idx: usize| -> Option<Individual> {
             let len = group.len();
-            if group[idx].energy < settings.reproduction_min {
+            if len >= settings.budget as usize || group[idx].energy < settings.reproduction_min {
                 return None;
             }
             let partner_idx = {
@@ -428,6 +446,7 @@ fn group_step_index<F: FnMut(&mut Vec<Individual>, usize) -> Option<Individual>>
     }
 }
 
+#[inline(always)]
 fn borrow_two_mut<T>(vec: &mut Vec<T>, left: usize, right: usize) -> (&mut T, &mut T) {
     debug_assert_ne!(left, right, "Indexes must be different");
     debug_assert!(left  < vec.len(), "Left index out of bounds");
