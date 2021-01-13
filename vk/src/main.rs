@@ -82,6 +82,16 @@ fn main() {
 	 * now it may be able to run more or steps than it would be able to run if
 	 * it were tied to the frame rate. */
 	runtime.spawn(async move {
+		if let Ok("1") = std::env::var("EVO_DROP_SIMULATION")
+			.as_ref()
+			.map(|s| s.as_str()) {
+
+			/* We were instructed to drop the simulation. */
+			warn!("Environment variable EVO_DROP_SIMULATION is set to \"1\"");
+			warn!("Dropping the simulation task immediately!");
+			return;
+		}
+
 		let mut time = Instant::now();
 		loop {
 			let now = Instant::now();
