@@ -656,6 +656,8 @@ impl<A> Display<A>
 			0..self.cube.index_count(),
 			0,
 			snapshot.predators().await);
+
+		/* Draw the  */
 	}
 
 	/** Record the lighting pass onto an encoder.

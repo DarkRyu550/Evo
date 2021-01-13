@@ -4,13 +4,13 @@
 #include <Definitions/SimulationParams.glslh>
 
 void main() {
-    uvec2 position  = gl_GlobalInvocationID.xy;
-    ivec2 dimension = imageSize(Evo_Field);
+    uvec3 position  = gl_GlobalInvocationID.xyz;
+    ivec3 dimension = imageSize(Evo_PredatorFields);
 
     /* Quit out of extra jobs. */
     if(position.x >= dimension.x) return;
     if(position.y >= dimension.y) return;
+    if(position.z >= dimension.z) return;
 
-    imageStore(Evo_Field,     ivec2(position), vec4(0.0));
-    imageStore(Evo_FieldLock, ivec2(position), uvec4(0));
+    imageStore(Evo_PredatorFields, ivec3(position), vec4(0.0));
 }

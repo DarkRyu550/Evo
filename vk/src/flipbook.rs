@@ -46,29 +46,29 @@ pub fn channel(state: Arc<State>, prefs: &Preferences) -> (Producer, Consumer) {
 					},
 					count: None
 				},
-				/* Lock plane. */
+				/* Herbivore simulation planes. */
 				BindGroupLayoutEntry {
 					binding: 1,
 					visibility: ShaderStage::COMPUTE | ShaderStage::VERTEX,
 					ty: BindingType::StorageTexture {
-						dimension: TextureViewDimension::D2,
-						format: TextureFormat::R32Uint,
+						dimension: TextureViewDimension::D2Array,
+						format: TextureFormat::Rgba32Float,
+						readonly: false
+					},
+					count: None
+				},
+				/* Predator simulation planes. */
+				BindGroupLayoutEntry {
+					binding: 2,
+					visibility: ShaderStage::COMPUTE | ShaderStage::VERTEX,
+					ty: BindingType::StorageTexture {
+						dimension: TextureViewDimension::D2Array,
+						format: TextureFormat::Rgba32Float,
 						readonly: false
 					},
 					count: None
 				},
 				/* Herbivore group. */
-				BindGroupLayoutEntry {
-					binding: 2,
-					visibility: ShaderStage::COMPUTE | ShaderStage::VERTEX,
-					ty: BindingType::StorageBuffer {
-						dynamic: false,
-						min_binding_size: None,
-						readonly: false
-					},
-					count: None
-				},
-				/* Predator group. */
 				BindGroupLayoutEntry {
 					binding: 3,
 					visibility: ShaderStage::COMPUTE | ShaderStage::VERTEX,
@@ -79,9 +79,20 @@ pub fn channel(state: Arc<State>, prefs: &Preferences) -> (Producer, Consumer) {
 					},
 					count: None
 				},
-				/* Back channel. */
+				/* Predator group. */
 				BindGroupLayoutEntry {
 					binding: 4,
+					visibility: ShaderStage::COMPUTE | ShaderStage::VERTEX,
+					ty: BindingType::StorageBuffer {
+						dynamic: false,
+						min_binding_size: None,
+						readonly: false
+					},
+					count: None
+				},
+				/* Back channel. */
+				BindGroupLayoutEntry {
+					binding: 5,
 					visibility: ShaderStage::COMPUTE | ShaderStage::VERTEX,
 					ty: BindingType::StorageBuffer {
 						dynamic: false,
@@ -151,8 +162,10 @@ struct Bundle {
 	back_channel: (Buffer, u64),
 	/** Handle to the simulation plane storage. */
 	plane: (Texture, u32, u32),
-	/** Handle to the simulation plane lock storage. */
-	lock: (Texture, u32, u32),
+	/** Handle to the herbivore simulation planes. */
+	herbivore_planes: (Texture, u32, u32, u32),
+	/** Handle to the herbivore simulation planes. */
+	predator_planes: (Texture, u32, u32, u32),
 	/** Bind group for the resources in this bundle. */
 	bind: BindGroup
 }
@@ -232,6 +245,60 @@ impl Bundle {
 				array_layer_count: None
 			});
 
+		let herbivore_planes = device.create_texture(
+			&TextureDescriptor {
+				label: Some("Flipbook/Dataset/HerbivoresPlanes"),
+				size: Extent3d {
+					width: prefs.simulation.horizontal_granularity,
+					height: prefs.simulation.vertical_granularity,
+					depth: prefs.simulation.herbivores.budget
+				},
+				mip_level_count: 1,
+				sample_count: 1,
+				dimension: TextureDimension::D3,
+				format: TextureFormat::Rgba32Float,
+				usage: TextureUsage::STORAGE | TextureUsage::COPY_SRC
+					| TextureUsage::COPY_DST
+			});
+		let herbivore_planes_view = herbivore_planes.create_view(
+			&TextureViewDescriptor {
+				label: Some("Flipbook/Dataset/HerbivorePlanesView"),
+				format: Some(TextureFormat::Rgba32Float),
+				dimension: Some(TextureViewDimension::D2Array),
+				aspect: TextureAspect::All,
+				base_mip_level: 0,
+				level_count: None,
+				base_array_layer: 0,
+				array_layer_count: None
+			});
+
+		let predator_planes = device.create_texture(
+			&TextureDescriptor {
+				label: Some("Flipbook/Dataset/PredatorPlanes"),
+				size: Extent3d {
+					width: prefs.simulation.horizontal_granularity,
+					height: prefs.simulation.vertical_granularity,
+					depth: prefs.simulation.predators.budget
+				},
+				mip_level_count: 1,
+				sample_count: 1,
+				dimension: TextureDimension::D3,
+				format: TextureFormat::Rgba32Float,
+				usage: TextureUsage::STORAGE | TextureUsage::COPY_SRC
+					| TextureUsage::COPY_DST
+			});
+		let predator_planes_view = predator_planes.create_view(
+			&TextureViewDescriptor {
+				label: Some("Flipbook/Dataset/PredatorPlanesView"),
+				format: Some(TextureFormat::Rgba32Float),
+				dimension: Some(TextureViewDimension::D2Array),
+				aspect: TextureAspect::All,
+				base_mip_level: 0,
+				level_count: None,
+				base_array_layer: 0,
+				array_layer_count: None
+			});
+
 		let mut clear = Vec::new();
 		clear.resize_with(
 			(prefs.simulation.horizontal_granularity
@@ -246,6 +313,7 @@ impl Bundle {
 				source[3] = w;
 			});
 
+		/* Clear the main plane texture. */
 		queue.write_texture(
 			TextureCopyView {
 				texture: &plane,
@@ -264,33 +332,6 @@ impl Bundle {
 				depth: 1
 			});
 
-		let lock = device.create_texture(
-			&TextureDescriptor {
-				label: Some("Flipbook/Dataset/LockTexture"),
-				size: Extent3d {
-					width: prefs.simulation.horizontal_granularity,
-					height: prefs.simulation.vertical_granularity,
-					depth: 1
-				},
-				mip_level_count: 1,
-				sample_count: 1,
-				dimension: TextureDimension::D2,
-				format: TextureFormat::R32Uint,
-				usage: TextureUsage::STORAGE | TextureUsage::COPY_DST
-					| TextureUsage::COPY_SRC
-			});
-		let lock_view = lock.create_view(
-			&TextureViewDescriptor {
-				label: Some("Flipbook/Dataset/PlaneTextureView"),
-				format: Some(TextureFormat::R32Uint),
-				dimension: Some(TextureViewDimension::D2),
-				aspect: TextureAspect::All,
-				base_mip_level: 0,
-				level_count: None,
-				base_array_layer: 0,
-				array_layer_count: None
-			});
-
 		let bind = device.create_bind_group(
 			&BindGroupDescriptor {
 				label: Some("Flipbook/Dataset/BindGroup"),
@@ -302,18 +343,22 @@ impl Bundle {
 					},
 					BindGroupEntry {
 						binding: 1,
-						resource: BindingResource::TextureView(&lock_view)
+						resource: BindingResource::TextureView(&herbivore_planes_view)
 					},
 					BindGroupEntry {
 						binding: 2,
-						resource: BindingResource::Buffer(herbivores.slice(..))
+						resource: BindingResource::TextureView(&predator_planes_view)
 					},
 					BindGroupEntry {
 						binding: 3,
-						resource: BindingResource::Buffer(predators.slice(..))
+						resource: BindingResource::Buffer(herbivores.slice(..))
 					},
 					BindGroupEntry {
 						binding: 4,
+						resource: BindingResource::Buffer(predators.slice(..))
+					},
+					BindGroupEntry {
+						binding: 5,
 						resource: BindingResource::Buffer(back_channel.slice(..))
 					}
 				]
@@ -339,12 +384,19 @@ impl Bundle {
 				prefs.simulation.horizontal_granularity,
 				prefs.simulation.vertical_granularity
 			),
-			lock: (
-				lock,
+			herbivore_planes: (
+				herbivore_planes,
 				prefs.simulation.horizontal_granularity,
-				prefs.simulation.vertical_granularity
+				prefs.simulation.vertical_granularity,
+				prefs.simulation.herbivores.budget
 			),
-			bind
+			predator_planes: (
+				predator_planes,
+				prefs.simulation.horizontal_granularity,
+				prefs.simulation.vertical_granularity,
+				prefs.simulation.predators.budget
+			),
+			bind,
 		}
 	}
 
@@ -548,37 +600,90 @@ impl Flipbook {
 
 		encoder.copy_texture_to_texture(
 			TextureCopyView {
-				texture: &bundles[i].lock.0,
+				texture: &bundles[i].herbivore_planes.0,
 				mip_level: 0,
 				origin: Origin3d::ZERO
 			},
 			TextureCopyView {
-				texture: &bundles[j].lock.0,
+				texture: &bundles[j].herbivore_planes.0,
 				mip_level: 0,
 				origin: Origin3d::ZERO
 			},
 			Extent3d {
-				width: if bundles[i].lock.1 != bundles[j].lock.1 {
-					panic!("both lock plane bundles must have been \
+				width: if bundles[i].herbivore_planes.1 != bundles[j].herbivore_planes.1 {
+					panic!("both herbivore plane bundles must have been \
 							the same width, but, instead, we got: \
-							bundles[{}].lock.1 ({}) != \
-							bundles[{}].lock.1 ({})",
-						i, bundles[i].lock.1,
-						j, bundles[j].lock.1)
+							bundles[{}].herbivore_planes.1 ({}) != \
+							bundles[{}].herbivore_planes.1 ({})",
+						i, bundles[i].herbivore_planes.1,
+						j, bundles[j].herbivore_planes.1)
 				} else {
-					bundles[i].lock.1
+					bundles[i].herbivore_planes.1
 				},
-				height: if bundles[i].lock.2 != bundles[j].lock.2 {
-					panic!("both lock plane bundles must have been \
+				height: if bundles[i].herbivore_planes.2 != bundles[j].herbivore_planes.2 {
+					panic!("both herbivore plane bundles must have been \
 							the same height, but, instead, we got: \
-							bundles[{}].lock.2 ({}) != \
-							bundles[{}].lock.2 ({})",
-						i, bundles[i].lock.2,
-						j, bundles[j].lock.2)
+							bundles[{}].herbivore_planes.2 ({}) != \
+							bundles[{}].herbivore_planes.2 ({})",
+						i, bundles[i].herbivore_planes.2,
+						j, bundles[j].herbivore_planes.2)
 				} else {
-					bundles[i].lock.2
+					bundles[i].herbivore_planes.2
 				},
-				depth: 1
+				depth: if bundles[i].herbivore_planes.3 != bundles[j].herbivore_planes.3 {
+					panic!("both herbivore plane bundles must have been \
+							the same depth, but, instead, we got: \
+							bundles[{}].herbivore_planes.3 ({}) != \
+							bundles[{}].herbivore_planes.3 ({})",
+						i, bundles[i].herbivore_planes.3,
+						j, bundles[j].herbivore_planes.3)
+				} else {
+					bundles[i].herbivore_planes.3
+				}
+			});
+
+		encoder.copy_texture_to_texture(
+			TextureCopyView {
+				texture: &bundles[i].predator_planes.0,
+				mip_level: 0,
+				origin: Origin3d::ZERO
+			},
+			TextureCopyView {
+				texture: &bundles[j].predator_planes.0,
+				mip_level: 0,
+				origin: Origin3d::ZERO
+			},
+			Extent3d {
+				width: if bundles[i].predator_planes.1 != bundles[j].predator_planes.1 {
+					panic!("both predator plane bundles must have been \
+							the same width, but, instead, we got: \
+							bundles[{}].predator_planes.1 ({}) != \
+							bundles[{}].predator_planes.1 ({})",
+						i, bundles[i].predator_planes.1,
+						j, bundles[j].predator_planes.1)
+				} else {
+					bundles[i].predator_planes.1
+				},
+				height: if bundles[i].predator_planes.2 != bundles[j].predator_planes.2 {
+					panic!("both predator plane bundles must have been \
+							the same height, but, instead, we got: \
+							bundles[{}].predator_planes.2 ({}) != \
+							bundles[{}].predator_planes.2 ({})",
+						i, bundles[i].predator_planes.2,
+						j, bundles[j].predator_planes.2)
+				} else {
+					bundles[i].predator_planes.2
+				},
+				depth: if bundles[i].predator_planes.3 != bundles[j].predator_planes.3 {
+					panic!("both predator plane bundles must have been \
+							the same depth, but, instead, we got: \
+							bundles[{}].predator_planes.3 ({}) != \
+							bundles[{}].predator_planes.3 ({})",
+						i, bundles[i].predator_planes.3,
+						j, bundles[j].predator_planes.3)
+				} else {
+					bundles[i].predator_planes.3
+				}
 			});
 
 		self.state.queue()

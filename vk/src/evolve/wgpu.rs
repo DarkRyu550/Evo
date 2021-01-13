@@ -122,12 +122,15 @@ pub struct Evo<A> {
 	params: ComputeParameters,
 	flipbook: Producer,
 
-	pre_run: Pipeline,
-	field_update: Pipeline,
+	pre_run_herbivores: Pipeline,
 	simulate_herbivores: Pipeline,
 	shuffle_herbivores: Pipeline,
+
+	pre_run_predators: Pipeline,
 	simulate_predators: Pipeline,
 	shuffle_predators: Pipeline,
+
+	update_plane: Pipeline,
 }
 impl<A> Evo<A>
 	where A: Borrow<State> {
@@ -179,23 +182,27 @@ impl<A> Evo<A>
 		let shuffle_predators = crate::shaders::compute::predators::shuffle();
 		let shuffle_predators = Pipeline::new(device, &params, &flipbook, shuffle_predators);
 
-		let pre_run = crate::shaders::compute::pre_run();
-		let pre_run = Pipeline::new(device, &params, &flipbook, pre_run);
+		let pre_run_herbivores = crate::shaders::compute::herbivores::pre_run();
+		let pre_run_herbivores = Pipeline::new(device, &params, &flipbook, pre_run_herbivores);
 
-		let field_update = crate::shaders::compute::field_update();
-		let field_update = Pipeline::new(device, &params, &flipbook, field_update);
+		let pre_run_predators = crate::shaders::compute::predators::pre_run();
+		let pre_run_predators = Pipeline::new(device, &params, &flipbook, pre_run_predators);
+
+		let update_plane = crate::shaders::compute::update_plane();
+		let update_plane = Pipeline::new(device, &params, &flipbook, update_plane);
 
 		Self {
 			state,
 			base_params,
 			params,
 			flipbook,
-			pre_run,
-			field_update,
 			simulate_herbivores,
 			shuffle_herbivores,
+			pre_run_predators,
 			simulate_predators,
-			shuffle_predators
+			shuffle_predators,
+			pre_run_herbivores,
+			update_plane
 		}
 	}
 
@@ -216,19 +223,21 @@ impl<A> Evo<A>
 		let herbivores = frame.herbivores().await.end;
 		let predators = frame.predators().await.end;
 
+
 		let mut encoder = device.create_command_encoder(
 			&CommandEncoderDescriptor {
 				label: Some("Evo/CommandEncoder")
 			});
 		let mut pass = encoder.begin_compute_pass();
 
-		pass.set_pipeline(&self.pre_run.pipeline);
+		/* Do the herbivore run. */
+		pass.set_pipeline(&self.pre_run_herbivores.pipeline);
 		pass.set_bind_group(0, frame.bind_group(), &[]);
 		pass.set_bind_group(1, &self.params.bind, &[]);
 		pass.dispatch(
 			frame.plane_width(),
 			frame.plane_height(),
-			1);
+			herbivores);
 
 		pass.set_pipeline(&self.simulate_herbivores.pipeline);
 		pass.set_bind_group(0, frame.bind_group(), &[]);
@@ -238,6 +247,15 @@ impl<A> Evo<A>
 			1,
 			1);
 
+		/* Do the predator run. */
+		pass.set_pipeline(&self.pre_run_predators.pipeline);
+		pass.set_bind_group(0, frame.bind_group(), &[]);
+		pass.set_bind_group(1, &self.params.bind, &[]);
+		pass.dispatch(
+			frame.plane_width(),
+			frame.plane_height(),
+			predators);
+
 		pass.set_pipeline(&self.simulate_predators.pipeline);
 		pass.set_bind_group(0, frame.bind_group(), &[]);
 		pass.set_bind_group(1, &self.params.bind, &[]);
@@ -246,14 +264,7 @@ impl<A> Evo<A>
 			1,
 			1);
 
-		pass.set_pipeline(&self.field_update.pipeline);
-		pass.set_bind_group(0, frame.bind_group(), &[]);
-		pass.set_bind_group(1, &self.params.bind, &[]);
-		pass.dispatch(
-			frame.plane_width(),
-			frame.plane_height(),
-			1);
-
+		/* Perform all of the required population shuffles. */
 		pass.set_pipeline(&self.shuffle_herbivores.pipeline);
 		pass.set_bind_group(0, frame.bind_group(), &[]);
 		pass.set_bind_group(1, &self.params.bind, &[]);
@@ -268,6 +279,15 @@ impl<A> Evo<A>
 		pass.dispatch(
 			predators,
 			1,
+			1);
+
+		/* Weave the results and update the plane. */
+		pass.set_pipeline(&self.update_plane.pipeline);
+		pass.set_bind_group(0, frame.bind_group(), &[]);
+		pass.set_bind_group(1, &self.params.bind, &[]);
+		pass.dispatch(
+			frame.plane_width(),
+			frame.plane_height(),
 			1);
 
 		std::mem::drop(pass);
