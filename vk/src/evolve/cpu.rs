@@ -165,6 +165,15 @@ impl State {
         }
     }
 
+    fn gradients(&self, group: &Group, individual: &Individual) -> [(f32, f32, f32); 4] {
+        [
+            self.gradient(group, individual, |c| c.red),
+            self.gradient(group, individual, |c| c.green),
+            self.gradient(group, individual, |c| c.blue),
+            self.gradient(group, individual, |c| c.grass),
+        ]
+    }
+
     fn step(&self, output: &mut State, delta: Duration) {
         // This function *must* copy all (needed) state to output, which means all mutable fields,
         // otherwise state will get lost. The map is blindly copied at the beginning because it's
@@ -205,17 +214,16 @@ impl State {
                 let nn_result = {
                     let weights = ndarray::arr2(&i.weights);
                     let inputs = ndarray::arr1({
-                        let grad_r = self.gradient(&self.params.herbivores, i, |c| c.red);
-                        let grad_g = self.gradient(&self.params.herbivores, i, |c| c.green);
-                        let grad_b = self.gradient(&self.params.herbivores, i, |c| c.blue);
+                        let [grad_r, grad_g, grad_b, grad_a] = self.gradients(&self.params.herbivores, i);
                         &[
                             i.velocity[0],
                             i.velocity[1],
                             grad_r.0, grad_r.1, grad_r.2,
                             grad_g.0, grad_g.1, grad_g.2,
                             grad_b.0, grad_b.1, grad_b.2,
+                            grad_a.0, grad_a.1, grad_a.2
                         ]
-                    }).into_shape((11, 1)).expect("Unable to reshape inputs to (11, 1)");
+                    }).into_shape((14, 1)).expect("Unable to reshape inputs to (14, 1)");
                     let biases = ndarray::arr1(&i.biases)
                         .into_shape((5, 1)).expect("Unable to reshape biases to (5, 1)");
                     let mut result = weights.dot(&inputs) + biases;
@@ -279,7 +287,7 @@ impl State {
             self.params.decomposition_rate,
             self.params.decomposition_rate,
             self.params.decomposition_rate,
-            self.params.growth_rate
+            self.params.growth_rate,
         );
     }
 
