@@ -64,10 +64,11 @@ void main()
     FieldLock(field_x, field_y);
     for(int i = int(Evo_LowerHerbivore); i < Evo_UpperHerbivore; ++i)
     {
-        float dist = distance(INDIVIDUAL.position, Evo_Herbivores[i].position);
-        if(dist < 2.0 && INDIVIDUAL.energy < 1.0) {
+        float dist   = distance(INDIVIDUAL.position, Evo_Herbivores[i].position);
+        float energy = Evo_Herbivores[i].energy;
+        if(dist < 2.0 && INDIVIDUAL.energy < 1.0 && energy > 0.0) {
             /* Eat. */
-            INDIVIDUAL.energy = clamp(INDIVIDUAL.energy + 0.5, 0.0, 1.0);
+            INDIVIDUAL.energy = clamp(INDIVIDUAL.energy + energy / 2.0, 0.0, 1.0);
             Evo_Herbivores[i].energy = -1.0;
         }
     }
