@@ -137,13 +137,14 @@ impl State {
         };
         let center = self.individual_pos(individual);
         let center_val = selector(self.map.cell_at(center.0, center.1));
+        let center = (center.0 as f32, center.1 as f32);
 
-        let mut gradient = (0.0f32, 0.0);
+        let mut gradient = (f32::MIN_POSITIVE, f32::MIN_POSITIVE);
 
         for i in top..=bottom {
             for j in left..=right {
                 let (direction, dist) = {
-                    let (x, y) = ((i - center.0) as f32, (j - center.1) as f32);
+                    let (x, y) = (i as f32 - center.0, j as f32 - center.1);
                     let mag = (x.powf(2.0) + y.powf(2.0)).sqrt();
                     ((x / mag, y / mag), mag)
                 };
@@ -160,9 +161,18 @@ impl State {
             }
         }
         {
-            let mag = (gradient.0.powf(2.0) + gradient.1.powf(2.0)).sqrt();
+            let mag = (gradient.0.powf(2.0) + gradient.1.powf(2.0)).sqrt().max(f32::MIN_POSITIVE);
             (gradient.0 / mag, gradient.1 / mag, mag)
         }
+    }
+
+    fn gradients(&self, group: &Group, individual: &Individual) -> [(f32, f32, f32); 4] {
+        [
+            self.gradient(group, individual, |c| c.red),
+            self.gradient(group, individual, |c| c.green),
+            self.gradient(group, individual, |c| c.blue),
+            self.gradient(group, individual, |c| c.grass),
+        ]
     }
 
     fn step(&self, output: &mut State, delta: Duration) {
@@ -189,6 +199,79 @@ impl State {
             }
         };
 
+        let common_update = |group: &Group, map: &mut Map, i: &mut Individual, (x, y)| {
+            /* math go brrrr */
+            let nn_result = {
+                let weights = ndarray::arr2(&i.weights);
+                let inputs = ndarray::arr1({
+                    let gradients = self.gradients(group, i);
+                    #[cfg(debug_assertions)]
+                        {
+                            for f in gradients.iter() {
+                                debug_assert!(!(f.0.is_nan() || f.1.is_nan() || f.2.is_nan()), "Found NaN in gradient: {:?}/{:?}", f, gradients);
+                            }
+                        }
+                    let [grad_r, grad_g, grad_b, grad_a] = gradients;
+                    &[
+                        i.velocity[0],
+                        i.velocity[1],
+                        grad_r.0, grad_r.1, grad_r.2,
+                        grad_g.0, grad_g.1, grad_g.2,
+                        grad_b.0, grad_b.1, grad_b.2,
+                        grad_a.0, grad_a.1, grad_a.2
+                    ]
+                }).into_shape((14, 1)).expect("Unable to reshape inputs to (14, 1)");
+                let biases = ndarray::arr1(&i.biases)
+                    .into_shape((5, 1)).expect("Unable to reshape biases to (5, 1)");
+                let mut result = weights.dot(&inputs) + biases;
+                debug_assert!(result.len() == 5, "Wrong result length");
+                result.map_inplace(|f| {
+                    let exp = f.exp();
+                    *f = exp / (exp + 1.0);
+                });
+                result.into_shape((5, )).expect("Unable to reshape result to (5,)")
+            };
+
+            #[cfg(debug_assertions)]
+                {
+                    for i in 0..5 {
+                        debug_assert!(!nn_result[i].is_nan(), "nn_result[{}] is NaN", i);
+                    }
+                }
+
+            /* movement and energy */
+            {
+                let theta = nn_result[0];
+                let magnitude = nn_result[1];
+                let mul = group.max_speed * delta;
+                let movement = [
+                    magnitude * f32::cos(theta * 2.0 * std::f32::consts::PI) * mul,
+                    magnitude * f32::sin(theta * 2.0 * std::f32::consts::PI) * mul
+                ];
+
+                i.position = bounds_check(i.position, movement);
+                i.velocity = movement;
+
+                let penalty = {
+                    let v = delta * magnitude;
+                    group.metabolism_min * (1.0 - v) + group.metabolism_max * v
+                };
+
+                debug_assert!(penalty > 0.0, "Invalid penalty ({:?}, delta = {:?}, magnitude = {:?})",
+                              penalty, delta, magnitude);
+
+                i.energy -= penalty;
+            }
+
+            /* drop pheromones */
+            {
+                let mut cell = map.cell_at_mut(x, y);
+                cell.red = f32::clamp(nn_result[2], 0.0, 1.0);
+                cell.green = f32::clamp(nn_result[3], 0.0, 1.0);
+                cell.blue = f32::clamp(nn_result[4], 0.0, 1.0);
+            }
+        };
+
         let herb_step = {
             let map = &mut output.map;
             move |i: &mut Individual| {
@@ -200,77 +283,36 @@ impl State {
                     i.energy += eat;
                     cell.grass -= eat;
                 }
-
-                /* math go brrrr */
-                let nn_result = {
-                    let weights = ndarray::arr2(&i.weights);
-                    let inputs = ndarray::arr1({
-                        let grad_r = self.gradient(&self.params.herbivores, i, |c| c.red);
-                        let grad_g = self.gradient(&self.params.herbivores, i, |c| c.green);
-                        let grad_b = self.gradient(&self.params.herbivores, i, |c| c.blue);
-                        &[
-                            i.velocity[0],
-                            i.velocity[1],
-                            grad_r.0, grad_r.1, grad_r.2,
-                            grad_g.0, grad_g.1, grad_g.2,
-                            grad_b.0, grad_b.1, grad_b.2,
-                        ]
-                    }).into_shape((11, 1)).expect("Unable to reshape inputs to (11, 1)");
-                    let biases = ndarray::arr1(&i.biases)
-                        .into_shape((5, 1)).expect("Unable to reshape biases to (5, 1)");
-                    let mut result = weights.dot(&inputs) + biases;
-                    debug_assert!(result.len() == 5, "Wrong result length");
-                    result.map_inplace(|f| {
-                        let exp = f.exp();
-                        *f = exp / (exp + 1.0);
-                    });
-                    result.into_shape((5, )).expect("Unable to reshape result to (5,)")
-                };
-
-                /* movement and energy */
-                {
-                    let theta = nn_result[0];
-                    let magnitude = nn_result[1];
-                    let mul = self.params.herbivores.max_speed * delta;
-                    let movement = [
-                        magnitude * f32::cos(theta * 2.0 * std::f32::consts::PI) * mul,
-                        magnitude * f32::sin(theta * 2.0 * std::f32::consts::PI) * mul
-                    ];
-
-                    i.position = bounds_check(i.position, movement);
-                    i.velocity = movement;
-
-                    let penalty = {
-                        let v = delta * magnitude;
-                        self.params.herbivores.metabolism_min * (1.0 - v) + self.params.herbivores.metabolism_max * v
-                    };
-
-                    i.energy -= penalty;
-                }
-
-                /* drop pheromones */
-                {
-                    let mut cell = map.cell_at_mut(x, y);
-                    cell.red = f32::clamp(nn_result[2], 0.0, 1.0);
-                    cell.green = f32::clamp(nn_result[3], 0.0, 1.0);
-                    cell.blue = f32::clamp(nn_result[4], 0.0, 1.0);
-                }
+                common_update(&self.params.herbivores, map, i, (x, y));
             }
         };
         group_step(&self.herbivores, &mut output.herbivores, herb_step);
 
         let pred_step = {
+            let map = &mut output.map;
             // Killing is implemented as setting energy to 0, such that the herbivore gets removed on the next
             // iteration. Code that renders the state should skip any individual with negative energy.
             let herb = &mut output.herbivores;
-            fn herbivores_around(vec: &mut Vec<Individual>, x: f32, y: f32, radius: f32) -> impl Iterator<Item=&mut Individual> {
+            fn herbivores_around(vec: &mut Vec<Individual>, x: u32, y: u32, radius: f32) -> impl Iterator<Item=&mut Individual> {
+                let x = x as f32;
+                let y = y as f32;
                 let dist = radius.powf(2f32);
                 vec.iter_mut().filter(move |h| {
                     h.energy > 0.0 && (h.position[0] - x).powf(2f32) + (h.position[1] - y).powf(2f32) < dist
                 })
             }
             move |i: &mut Individual| {
-                //TODO
+                let (x, y) = self.individual_pos(i);
+                /* energy */
+                {
+                    if i.energy < 1.0 {
+                        if let Some(target) = herbivores_around(herb, x, y, 2.0).next() {
+                            i.energy = f32::clamp(i.energy + 0.5, 0.0, 1.0);
+                            target.energy = -1.0;
+                        }
+                    }
+                }
+                common_update(&self.params.predators, map, i, (x, y));
             }
         };
         group_step(&self.carnivores, &mut output.carnivores, pred_step);
@@ -279,8 +321,62 @@ impl State {
             self.params.decomposition_rate,
             self.params.decomposition_rate,
             self.params.decomposition_rate,
-            self.params.growth_rate
+            self.params.growth_rate,
         );
+    }
+
+    fn shuffle(&mut self, output: &mut State) {
+        let shuffle = |settings: &Group, group: &mut Vec<Individual>, idx: usize| -> Option<Individual> {
+            let len = group.len();
+            if len >= settings.budget as usize || group[idx].energy < settings.reproduction_min {
+                return None;
+            }
+            let partner_idx = {
+                let mut chosen = idx;
+                for j in 0..len {
+                    if (group[j].energy > settings.reproduction_min && group[j].energy > group[chosen].energy) || chosen == idx {
+                        chosen = j;
+                    }
+                }
+                if chosen == idx {
+                    return None;
+                }
+                chosen
+            };
+            let (me, partner) = borrow_two_mut(group, idx, partner_idx);
+
+            me.energy -= settings.reproduction_cost;
+            partner.energy -= settings.reproduction_cost;
+
+            let mut child = Individual {
+                position: [(me.position[0] + partner.position[0]) / 2.0, (me.position[1] + partner.position[1]) / 2.0],
+                velocity: [(me.velocity[0] + partner.velocity[0]) / 2.0, (me.velocity[1] + partner.velocity[1]) / 2.0],
+                energy: settings.offspring_energy,
+                weights: Default::default(),
+                biases: Default::default(),
+            };
+            for i in 0..me.weights.len() {
+                for j in 0..me.weights[0].len() {
+                    child.weights[i][j] =
+                        (me.weights[i][j] + partner.weights[i][j]) / 2.0;
+                }
+            }
+            for i in 0..me.biases.len() {
+                child.biases[i] = (me.biases[i] + partner.biases[i]) / 2.0;
+            }
+            Some(child)
+        };
+
+        {
+            let herb = &self.params.herbivores;
+            group_step_index(&mut self.herbivores, &mut output.herbivores,
+                             |v, idx| shuffle(herb, v, idx));
+        }
+        {
+            let pred = &self.params.predators;
+            group_step_index(&mut self.carnivores, &mut output.carnivores,
+                             |v, idx| shuffle(pred, v, idx));
+        }
     }
 
     fn individual_pos(&self, i: &Individual) -> (u32, u32) {
@@ -293,36 +389,30 @@ impl State {
 
 #[derive(Clone, Debug)]
 pub struct World {
-    state: [State; 2],
-    current_state: usize,
+    state: State,
+    temp_state: State,
 }
 
 impl World {
     pub fn new(params: &Simulation) -> Self {
         let state = State::new(params);
         World {
-            state: [state.clone(), state.clone()],
-            current_state: 0,
+            state: state.clone(),
+            temp_state: state,
         }
     }
 
     pub fn step(&mut self, delta: Duration) {
-        let (a, b) = self.state.split_at_mut(1);
-        let (orig, dest) = if self.current_state == 0 {
-            (a, b)
-        } else {
-            (b, a)
-        };
-        orig[0].step(&mut dest[0], delta);
-        self.current_state = 1 - self.current_state;
+        self.state.step(&mut self.temp_state, delta);
+        self.temp_state.shuffle(&mut self.state);
     }
 
     pub fn current_state(&self) -> &State {
-        &self.state[self.current_state]
+        &self.state
     }
 
     pub fn current_state_mut(&mut self) -> &mut State {
-        &mut self.state[self.current_state]
+        &mut self.state
     }
 }
 
@@ -338,4 +428,31 @@ fn group_step<F: FnMut(&mut Individual) -> ()>(src: &Vec<Individual>, dest: &mut
             Some(i)
         })
         .for_each(|i| dest.push(i));
+}
+
+fn group_step_index<F: FnMut(&mut Vec<Individual>, usize) -> Option<Individual>>(src: &mut Vec<Individual>, dest: &mut Vec<Individual>, mut f: F) {
+    dest.clear();
+    let initial_len = src.len();
+    for i in 0..initial_len {
+        //remove individuals killed by predators
+        if src[i].energy < 0.0 {
+            continue;
+        }
+        if let Some(child) = f(src, i) {
+            dest.push(child);
+        }
+        dest.push(src[i]);
+        debug_assert_eq!(src.len(), initial_len, "Source vector was resized! The function must only modify elements, not add");
+    }
+}
+
+#[inline(always)]
+fn borrow_two_mut<T>(vec: &mut Vec<T>, left: usize, right: usize) -> (&mut T, &mut T) {
+    debug_assert_ne!(left, right, "Indexes must be different");
+    debug_assert!(left  < vec.len(), "Left index out of bounds");
+    debug_assert!(right < vec.len(), "Right index out of bounds");
+    let ptr = vec.as_mut_ptr();
+    unsafe {
+        (&mut *ptr.add(left), &mut *ptr.add(right))
+    }
 }
