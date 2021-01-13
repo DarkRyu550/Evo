@@ -291,6 +291,60 @@ impl State {
         );
     }
 
+    fn shuffle(&mut self, output: &mut State) {
+        let shuffle = |settings: &Group, group: &mut Vec<Individual>, idx: usize| -> Option<Individual> {
+            let len = group.len();
+            if group[idx].energy < settings.reproduction_min {
+                return None;
+            }
+            let partner_idx = {
+                let mut chosen = idx;
+                for j in 0..len {
+                    if (group[j].energy > settings.reproduction_min && group[j].energy > group[chosen].energy) || chosen == idx {
+                        chosen = j;
+                    }
+                }
+                if chosen == idx {
+                    return None;
+                }
+                chosen
+            };
+            let (me, partner) = borrow_two_mut(group, idx, partner_idx);
+
+            me.energy -= settings.reproduction_cost;
+            partner.energy -= settings.reproduction_cost;
+
+            let mut child = Individual {
+                position: [(me.position[0] + partner.position[0]) / 2.0, (me.position[1] + partner.position[1]) / 2.0],
+                velocity: [(me.velocity[0] + partner.velocity[0]) / 2.0, (me.velocity[1] + partner.velocity[1]) / 2.0],
+                energy: settings.offspring_energy,
+                weights: Default::default(),
+                biases: Default::default(),
+            };
+            for i in 0..me.weights.len() {
+                for j in 0..me.weights[0].len() {
+                    child.weights[i][j] =
+                        (me.weights[i][j] + partner.weights[i][j]) / 2.0;
+                }
+            }
+            for i in 0..me.biases.len() {
+                child.biases[i] = (me.biases[i] + partner.biases[i]) / 2.0;
+            }
+            Some(child)
+        };
+
+        {
+            let herb = &self.params.herbivores;
+            group_step_index(&mut self.herbivores, &mut output.herbivores,
+                             |v, idx| shuffle(herb, v, idx));
+        }
+        {
+            let pred = &self.params.predators;
+            group_step_index(&mut self.carnivores, &mut output.carnivores,
+                             |v, idx| shuffle(pred, v, idx));
+        }
+    }
+
     fn individual_pos(&self, i: &Individual) -> (u32, u32) {
         (
             (i.position[0] / self.params.plane_width).floor() as u32,
@@ -301,36 +355,30 @@ impl State {
 
 #[derive(Clone, Debug)]
 pub struct World {
-    state: [State; 2],
-    current_state: usize,
+    state: State,
+    temp_state: State,
 }
 
 impl World {
     pub fn new(params: &Simulation) -> Self {
         let state = State::new(params);
         World {
-            state: [state.clone(), state.clone()],
-            current_state: 0,
+            state: state.clone(),
+            temp_state: state,
         }
     }
 
     pub fn step(&mut self, delta: Duration) {
-        let (a, b) = self.state.split_at_mut(1);
-        let (orig, dest) = if self.current_state == 0 {
-            (a, b)
-        } else {
-            (b, a)
-        };
-        orig[0].step(&mut dest[0], delta);
-        self.current_state = 1 - self.current_state;
+        self.state.step(&mut self.temp_state, delta);
+        self.temp_state.shuffle(&mut self.state);
     }
 
     pub fn current_state(&self) -> &State {
-        &self.state[self.current_state]
+        &self.state
     }
 
     pub fn current_state_mut(&mut self) -> &mut State {
-        &mut self.state[self.current_state]
+        &mut self.state
     }
 }
 
@@ -346,4 +394,26 @@ fn group_step<F: FnMut(&mut Individual) -> ()>(src: &Vec<Individual>, dest: &mut
             Some(i)
         })
         .for_each(|i| dest.push(i));
+}
+
+fn group_step_index<F: FnMut(&mut Vec<Individual>, usize) -> Option<Individual>>(src: &mut Vec<Individual>, dest: &mut Vec<Individual>, mut f: F) {
+    dest.clear();
+    let initial_len = src.len();
+    for i in 0..initial_len {
+        if let Some(child) = f(src, i) {
+            dest.push(child);
+        }
+        dest.push(src[i]);
+        debug_assert_eq!(src.len(), initial_len, "Source vector was resized! The function must only modify elements, not add");
+    }
+}
+
+fn borrow_two_mut<T>(vec: &mut Vec<T>, left: usize, right: usize) -> (&mut T, &mut T) {
+    debug_assert_ne!(left, right, "Indexes must be different");
+    debug_assert!(left  < vec.len(), "Left index out of bounds");
+    debug_assert!(right < vec.len(), "Right index out of bounds");
+    let ptr = vec.as_mut_ptr();
+    unsafe {
+        (&mut *ptr.add(left), &mut *ptr.add(right))
+    }
 }
