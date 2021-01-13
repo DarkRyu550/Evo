@@ -142,6 +142,29 @@ impl Matrix4 {
 		])
 	}
 
+	/** Take a rotation and scaling matrix and make it suitable for use with
+	 * normal vectors. This function will only work correctly if you use
+	 * that kind of matrix. */
+	pub fn into_normal_transform(mut self) -> Self {
+		/* Invert the scaling part of the matrix. */
+		self.0[0x0] = 1.0 / self.0[0x0];
+		self.0[0x5] = 1.0 / self.0[0x5];
+		self.0[0xa] = 1.0 / self.0[0xa];
+
+		/* Make the 4D part of this matrix into an identity. */
+		self.0[0x3] = 0.0;
+		self.0[0x7] = 0.0;
+		self.0[0xb] = 0.0;
+
+		self.0[0xc] = 0.0;
+		self.0[0xd] = 0.0;
+		self.0[0xe] = 0.0;
+
+		self.0[0xf] = 1.0;
+
+		self
+	}
+
 	pub fn into_inner(self) -> [f32; 16] { self.0 }
 
 	pub fn transpose(mut self) -> Self {
@@ -225,6 +248,10 @@ impl RenderParameters {
 	pub fn bytes(&self, buf: &mut Vec<u8>) -> usize {
 		let mut written = 0;
 		written += self.world_transformation.transpose().bytes(buf);
+		written += self.world_transformation
+			.into_normal_transform()
+			.transpose()
+			.bytes(buf);
 		written += self.projection.transpose().bytes(buf);
 
 		written

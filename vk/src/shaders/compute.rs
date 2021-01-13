@@ -6,12 +6,12 @@ pub mod herbivores {
 
 	/** The shader performing one step of the simulation. */
 	pub fn simulate() -> ShaderModuleSource<'static> {
-		wgpu::include_spirv!(concat!(env!("OUT_DIR"), "/shaders/SimulateHerbivore.spv"))
+		wgpu::include_spirv!(concat!(env!("OUT_DIR"), "/shaders/Compute/SimulateHerbivore.spv"))
 	}
 
 	/** The shader performing the shuffling and evolution step. */
 	pub fn shuffle() -> ShaderModuleSource<'static> {
-		wgpu::include_spirv!(concat!(env!("OUT_DIR"), "/shaders/ShuffleHerbivore.spv"))
+		wgpu::include_spirv!(concat!(env!("OUT_DIR"), "/shaders/Compute/ShuffleHerbivore.spv"))
 	}
 }
 
@@ -21,21 +21,21 @@ pub mod predators {
 
 	/** The shader performing one step of the simulation. */
 	pub fn simulate() -> ShaderModuleSource<'static> {
-		wgpu::include_spirv!(concat!(env!("OUT_DIR"), "/shaders/SimulatePredator.spv"))
+		wgpu::include_spirv!(concat!(env!("OUT_DIR"), "/shaders/Compute/SimulatePredator.spv"))
 	}
 
 	/** The shader performing the shuffling and evolution step. */
 	pub fn shuffle() -> ShaderModuleSource<'static> {
-		wgpu::include_spirv!(concat!(env!("OUT_DIR"), "/shaders/ShufflePredator.spv"))
+		wgpu::include_spirv!(concat!(env!("OUT_DIR"), "/shaders/Compute/ShufflePredator.spv"))
 	}
 }
 
 /** Pre run shader for setting everything up. */
 pub fn pre_run() -> ShaderModuleSource<'static> {
-	wgpu::include_spirv!(concat!(env!("OUT_DIR"), "/shaders/PreRun.spv"))
+	wgpu::include_spirv!(concat!(env!("OUT_DIR"), "/shaders/Compute/PreRun.spv"))
 }
 
 /** Shader for running updates on the simulation field. */
 pub fn field_update() -> ShaderModuleSource<'static> {
-	wgpu::include_spirv!(concat!(env!("OUT_DIR"), "/shaders/FieldUpdate.spv"))
+	wgpu::include_spirv!(concat!(env!("OUT_DIR"), "/shaders/Compute/FieldUpdate.spv"))
 }
