@@ -145,7 +145,7 @@ impl State {
             for j in left..=right {
                 let (direction, dist) = {
                     let (x, y) = (i as f32 - center.0, j as f32 - center.1);
-                    let mag = (x.powf(2.0) + y.powf(2.0)).sqrt();
+                    let mag = (x.powf(2.0) + y.powf(2.0)).sqrt().max(f32::MIN_POSITIVE);
                     ((x / mag, y / mag), mag)
                 };
 
@@ -162,6 +162,8 @@ impl State {
         }
         {
             let mag = (gradient.0.powf(2.0) + gradient.1.powf(2.0)).sqrt().max(f32::MIN_POSITIVE);
+            debug_assert!(!(gradient.0 / mag).is_nan(), "Found NaN: {}/{}", gradient.0, mag);
+            debug_assert!(!(gradient.1 / mag).is_nan(), "Found NaN: {}/{}", gradient.1, mag);
             (gradient.0 / mag, gradient.1 / mag, mag)
         }
     }
@@ -205,12 +207,6 @@ impl State {
                 let weights = ndarray::arr2(&i.weights);
                 let inputs = ndarray::arr1({
                     let gradients = self.gradients(group, i);
-                    #[cfg(debug_assertions)]
-                        {
-                            for f in gradients.iter() {
-                                debug_assert!(!(f.0.is_nan() || f.1.is_nan() || f.2.is_nan()), "Found NaN in gradient: {:?}/{:?}", f, gradients);
-                            }
-                        }
                     let [grad_r, grad_g, grad_b, grad_a] = gradients;
                     &[
                         i.velocity[0],

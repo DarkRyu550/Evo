@@ -24,3 +24,6 @@ ndarray     = "0.14.0"
 [build-dependencies]
 shaderc = "0.7"
 obj-rs  = "0.6"
+
+[profile.release]
+lto = "thin"
