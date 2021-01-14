@@ -264,7 +264,7 @@ impl Bundle {
 			&TextureViewDescriptor {
 				label: Some("Flipbook/Dataset/HerbivorePlanesView"),
 				format: Some(TextureFormat::Rgba32Float),
-				dimension: Some(TextureViewDimension::D2Array),
+				dimension: Some(TextureViewDimension::D3),
 				aspect: TextureAspect::All,
 				base_mip_level: 0,
 				level_count: None,
@@ -291,7 +291,7 @@ impl Bundle {
 			&TextureViewDescriptor {
 				label: Some("Flipbook/Dataset/PredatorPlanesView"),
 				format: Some(TextureFormat::Rgba32Float),
-				dimension: Some(TextureViewDimension::D2Array),
+				dimension: Some(TextureViewDimension::D3),
 				aspect: TextureAspect::All,
 				base_mip_level: 0,
 				level_count: None,

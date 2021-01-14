@@ -59,9 +59,9 @@ struct Evo_Individual
 };
 
 /* Binding Section. */
-layout(set = 0, binding = 1, rgba32f) uniform image2D      Evo_Field;
-layout(set = 0, binding = 1, rgba32f) uniform image2DArray Evo_HerbivoreFields;
-layout(set = 0, binding = 2, rgba32f) uniform image2DArray Evo_PredatorFields;
+layout(set = 0, binding = 1, rgba32f) uniform image2D Evo_Field;
+layout(set = 0, binding = 1, rgba32f) uniform image3D Evo_HerbivoreFields;
+layout(set = 0, binding = 2, rgba32f) uniform image3D Evo_PredatorFields;
 
 layout(set = 0, binding = 3, row_major) buffer _Evo_HerbivoreGroup
 {
