@@ -28,10 +28,16 @@ mod dataset;
 mod models;
 mod evolve;
 
+/** Backend driver to be used for evolution. */
+enum Backend {
+	/** Use the GPU code. */
+	Gpu(Evo<Arc<State>>),
+	/** Use the CPU code. */
+	Cpu(World)
+}
+
 fn main() {
 	env_logger::builder()
-		/* Disgusting. */
-		.filter(Some("gfx_backend_vulkan"), LevelFilter::Off)
 		.init();
 
 	let prefs = Preferences::try_load()
@@ -65,21 +71,20 @@ fn main() {
 		consumer,
 		&prefs);
 
-	let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread()
+	let runtime = tokio::runtime::Builder::new_multi_thread()
 		.enable_all()
 		.build()
-		.unwrap());
+		.unwrap();
 
-	let mut process: Box<dyn FnMut(Duration) + Send> = if prefs.simulation.mode == SimulationMode::Gpu {
-		let runtime = runtime.clone();
-		let mut evo = Evo::new(
+	let mut backend = if prefs.simulation.mode == SimulationMode::Gpu {
+		let evo = Evo::new(
 			state.clone(),
 			producer,
 			&prefs);
-		Box::new(move |d: Duration| { runtime.block_on(evo.iterate(d)); })
+		Backend::Gpu(evo)
 	} else {
-		let mut world = World::new(&prefs.simulation);
-		Box::new(move |d: Duration| -> () { world.step(d); })
+		let world = World::new(&prefs.simulation);
+		Backend::Cpu(world)
 	};
 
 	/* Keep a thread taking care of polling the device. */
@@ -132,7 +137,10 @@ fn main() {
 
 
 			/* Simulate. */
-			process(delta);
+			match backend {
+				Backend::Gpu(ref mut driver) => driver.iterate(delta).await,
+				Backend::Cpu(ref mut driver) => driver.step(delta)
+			}
 		}
 	});
 
